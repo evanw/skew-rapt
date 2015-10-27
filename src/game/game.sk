@@ -1,12 +1,4 @@
 const gameScale = 50.0
-const GAME_WIN_TEXT = "You won!  Hit SPACE to play the next level or ESC for the level selection menu."
-const GOLDEN_COG_TEXT = "You earned a golden cog!"
-const SILVER_COG_TEXT = "You earned a silver cog!"
-const GAME_LOSS_TEXT = "You lost.  Hit SPACE to restart, or ESC to select a new level."
-const TEXT_BOX_X_MARGIN = 6.0
-const TEXT_BOX_Y_MARGIN = 6.0
-const SECONDS_BETWEEN_TICKS = 1.0 / 60
-const useFixedPhysicsTick = true
 
 class Game :: Screen {
   var fps = 0.0
@@ -41,7 +33,7 @@ class Game :: Screen {
     # overall, a fixed physics tick provides about 5 FPS drop but fixes a lot of
     # gameplay issues (measurements above approximate but within about +/-1)
 
-    if useFixedPhysicsTick {
+    if USE_FIXED_PHYSICS_TICK {
       # fixed physics tick
       var count = 0
       fixedPhysicsTick += seconds
@@ -178,4 +170,15 @@ class Game :: Screen {
   def keyUp(key Key) {
     changeKeyValue(key, false)
   }
+}
+
+namespace Game {
+  const GAME_WIN_TEXT = "You won!  Hit SPACE to play the next level or ESC for the level selection menu."
+  const GOLDEN_COG_TEXT = "You earned a golden cog!"
+  const SILVER_COG_TEXT = "You earned a silver cog!"
+  const GAME_LOSS_TEXT = "You lost.  Hit SPACE to restart, or ESC to select a new level."
+  const TEXT_BOX_X_MARGIN = 6.0
+  const TEXT_BOX_Y_MARGIN = 6.0
+  const SECONDS_BETWEEN_TICKS = 1.0 / 60
+  const USE_FIXED_PHYSICS_TICK = true
 }

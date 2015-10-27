@@ -4,10 +4,6 @@ enum DoorbellType {
   TOGGLE
 }
 
-# Must be wider and taller than the player to avoid double toggling
-const DOORBELL_RADIUS = 0.11
-const DOORBELL_SLICES = 3
-
 class Doorbell : Enemy {
   var hitBox AABB
   var behavior DoorbellBehavior
@@ -20,9 +16,7 @@ class Doorbell : Enemy {
 
   def new(center Vector, behavior DoorbellBehavior, visible bool) {
     super(.DOORBELL, 1)
-    const DOORBELL_WIDTH = 0.40
-    const DOORBELL_HEIGHT = PLAYER_HEIGHT + 0.01
-    hitBox = AABB.makeAABB(center, DOORBELL_WIDTH, DOORBELL_HEIGHT)
+    hitBox = AABB.makeAABB(center, 0.40, Player.HEIGHT + 0.01)
     self.behavior = behavior
     self.visible = visible
   }
@@ -84,17 +78,22 @@ class Doorbell : Enemy {
       c.setFillColor(.WHITE)
       c.setStrokeColor(.BLACK)
       c.beginPath
-      c.arc(pos.x, pos.y, DOORBELL_RADIUS, 0, TWOPI, false)
+      c.arc(pos.x, pos.y, RADIUS, 0, TWOPI, false)
       c.fill
       c.stroke
 
       c.beginPath
-      for i in 0..DOORBELL_SLICES {
+      for i in 0..SLICES {
         c.moveTo(pos.x, pos.y)
-        var nextPos = pos + Vector.fromAngle(startingAngle + (i - 0.5) * (TWOPI / DOORBELL_SLICES)) * DOORBELL_RADIUS
+        var nextPos = pos + Vector.fromAngle(startingAngle + (i - 0.5) * (TWOPI / SLICES)) * RADIUS
         c.lineTo(nextPos.x, nextPos.y)
       }
       c.stroke
     }
   }
+}
+
+namespace Doorbell {
+  const RADIUS = 0.11 # Must be wider and taller than the player to avoid double toggling
+  const SLICES = 3
 }

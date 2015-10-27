@@ -1,7 +1,3 @@
-const MAX_SPAWN_FORCE = 100.0
-const INNER_SPAWN_RADIUS = 1.0
-const OUTER_SPAWN_RADIUS = 1.1
-
 enum EnemyType {
   BOMB
   BOMBER
@@ -137,4 +133,10 @@ class Enemy : Entity {
   # Do stuff that needs an updated enemy, like move the graphics
   def afterTick(seconds double) {
   }
+}
+
+namespace Enemy {
+  const MAX_SPAWN_FORCE = 100.0
+  const INNER_SPAWN_RADIUS = 1.0
+  const OUTER_SPAWN_RADIUS = 1.1
 }

@@ -1,133 +1,3 @@
-# constants
-const PAUSE_AFTER_DEATH = 2.0
-const RESPAWN_INTERPOLATION_TIME = 1.0
-const PAUSE_BEFORE_RESPAWN = 0.3
-const PLAYER_ACCELERATION = 50.0
-const PLAYER_MAX_SPEED = 8.0
-const PLAYER_WIDTH = 0.2
-const PLAYER_HEIGHT = 0.75
-const PLAYER_SUPER_JUMP_SPEED = 10.0
-const PLAYER_CLAMBER_ACCEL_X = 5.0
-const PLAYER_CLAMBER_ACCEL_Y = 10.0
-const PLAYER_DEATH_SPEED = 15.0
-const PLAYER_GRAVITY = 10.0
-const SLIDE_PARTICLE_TIMER_PERIOD = 1.0 / 5
-const SUPER_PARTICLE_TIMER_PERIOD = 1.0 / 40
-const JUMP_MIN_WAIT = 0.5
-const WALL_FRICTION = 0.1
-
-enum PlayerState {
-  FLOOR
-  AIR
-  CLAMBER
-  LEFT_WALL
-  RIGHT_WALL
-}
-
-const runningKeyframes = [
-  Keyframe.new(Vector.new(0, -5 / 50.0), [5, -10, 65, -55, 20, 40, -20, -30, -30, 10]).degreesToRadians,
-  Keyframe.new(Vector.new(0, -2 / 50.0), [5, -10, 35, -25, 0, 30, 18, -110, 0, 20]).degreesToRadians,
-  Keyframe.new(Vector.new(0, 0), [5, -10, 10, -30, -20, 20, 60, -100, 10, 30]).degreesToRadians,
-
-  Keyframe.new(Vector.new(0, -5 / 50.0), [5, -10, -20, -30, -30, 10, 65, -55, 20, 40]).degreesToRadians,
-  Keyframe.new(Vector.new(0, -2 / 50.0), [5, -10, 18, -110, 0, 20, 35, -25, 0, 30]).degreesToRadians,
-  Keyframe.new(Vector.new(0, 0), [5, -10, 60, -100, 10, 30, 10, -30, -20, 20]).degreesToRadians,
-]
-const jumpingKeyframes = [
-  Keyframe.new(Vector.new(0, 0), [0, -10, 150, -170, -40, 30, -30, -20, 20, 150]).degreesToRadians,
-  Keyframe.new(Vector.new(0, 0), [-20, 10, 60, -100, -80, 30, 30, -20, 30, 30]).degreesToRadians,
-]
-const wallSlidingKeyframe =
-  Keyframe.new(Vector.new((0.4 - PLAYER_WIDTH) / 2, 0), [0, -10, 150, -130, 140, 50, 50, -30, 50, 130]).degreesToRadians
-const crouchingKeyframe =
-  Keyframe.new(Vector.new(0, -0.2), [30, -30, 130, -110, -30, 40, 60, -120, 20, 20]).degreesToRadians
-const fallingKeyframes = [
-  Keyframe.new(Vector.new(0, 0), [-20, 5, 10, -30, -120, -30, 40, -20, 120, 30]).degreesToRadians,
-  Keyframe.new(Vector.new(0, 0), [-20, 5, 10, -30, -130, -60, 40, -20, 150, 50]).degreesToRadians,
-]
-const clamberingKeyframes = [
-  Keyframe.new(Vector.new((0.4 - PLAYER_WIDTH) / 2, 0), [0, -10, 150, -130, 140, 50, 50, -30, 50, 130]).degreesToRadians,
-  Keyframe.new(Vector.new(0, -0.2), [30, -30, 160, -180, -30, 40, 20, -10, 20, 20]).degreesToRadians,
-]
-
-enum PlayerSprite {
-  HEAD
-  TORSO
-  LEFT_UPPER_LEG
-  LEFT_LOWER_LEG
-  LEFT_UPPER_ARM
-  LEFT_LOWER_ARM
-  RIGHT_UPPER_LEG
-  RIGHT_LOWER_LEG
-  RIGHT_UPPER_ARM
-  RIGHT_LOWER_ARM
-  NUM_SPRITES
-}
-
-def drawCallbackQuad(x1 double, x2 double, y1 double, y2 double) fn(Context) {
-  return c => {
-    c.beginPath
-    c.moveTo(x1 / 50, y1 / 50)
-    c.lineTo(x2 / 50, y2 / 50)
-    c.lineTo(-x2 / 50, y2 / 50)
-    c.lineTo(-x1 / 50, y1 / 50)
-    c.closePath
-    c.fill
-    c.stroke
-  }
-}
-
-def drawCallbackHead(x1 double, x2 double, y1 double, y2 double, y3 double) fn(Context) {
-  var quad = drawCallbackQuad(x1, x2, y1, y2)
-  return c => {
-    quad(c)
-    c.beginPath
-    c.moveTo(0, y2 / 50)
-    c.lineTo(0, y3 / 50 - 0.02)
-    c.arc(0, y3 / 50, 0.02, -Math.PI / 2, Math.PI * 3 / 2, false)
-    c.stroke
-  }
-}
-
-def createPlayerSprites List<Sprite> {
-  var sprites List<Sprite> = []
-
-  for i in 0..PlayerSprite.NUM_SPRITES {
-    sprites.append(Sprite.new)
-  }
-
-  sprites[PlayerSprite.HEAD].drawCallback = drawCallbackHead(2.5, 2.5, 1, 10, 18)
-  sprites[PlayerSprite.TORSO].drawCallback = drawCallbackQuad(1.5, 1.5, 0, 15)
-  sprites[PlayerSprite.LEFT_UPPER_LEG].drawCallback = drawCallbackQuad(1.5, 1, 0, -10)
-  sprites[PlayerSprite.LEFT_LOWER_LEG].drawCallback = drawCallbackQuad(1, 1.5, 0, -10)
-  sprites[PlayerSprite.LEFT_UPPER_ARM].drawCallback = drawCallbackQuad(1.5, 0.5, 0, -9)
-  sprites[PlayerSprite.LEFT_LOWER_ARM].drawCallback = drawCallbackQuad(0.5, 1.5, 0, -10)
-  sprites[PlayerSprite.RIGHT_UPPER_LEG].drawCallback = sprites[PlayerSprite.LEFT_UPPER_LEG].drawCallback
-  sprites[PlayerSprite.RIGHT_LOWER_LEG].drawCallback = sprites[PlayerSprite.LEFT_LOWER_LEG].drawCallback
-  sprites[PlayerSprite.RIGHT_UPPER_ARM].drawCallback = sprites[PlayerSprite.LEFT_UPPER_ARM].drawCallback
-  sprites[PlayerSprite.RIGHT_LOWER_ARM].drawCallback = sprites[PlayerSprite.LEFT_LOWER_ARM].drawCallback
-
-  sprites[PlayerSprite.HEAD].setParent(sprites[PlayerSprite.TORSO])
-  sprites[PlayerSprite.LEFT_UPPER_ARM].setParent(sprites[PlayerSprite.TORSO])
-  sprites[PlayerSprite.RIGHT_UPPER_ARM].setParent(sprites[PlayerSprite.TORSO])
-  sprites[PlayerSprite.LEFT_LOWER_ARM].setParent(sprites[PlayerSprite.LEFT_UPPER_ARM])
-  sprites[PlayerSprite.RIGHT_LOWER_ARM].setParent(sprites[PlayerSprite.RIGHT_UPPER_ARM])
-  sprites[PlayerSprite.LEFT_UPPER_LEG].setParent(sprites[PlayerSprite.TORSO])
-  sprites[PlayerSprite.RIGHT_UPPER_LEG].setParent(sprites[PlayerSprite.TORSO])
-  sprites[PlayerSprite.LEFT_LOWER_LEG].setParent(sprites[PlayerSprite.LEFT_UPPER_LEG])
-  sprites[PlayerSprite.RIGHT_LOWER_LEG].setParent(sprites[PlayerSprite.RIGHT_UPPER_LEG])
-
-  sprites[PlayerSprite.HEAD].offsetBeforeRotation = Vector.new(0, 17 / 50.0)
-  sprites[PlayerSprite.LEFT_LOWER_LEG].offsetBeforeRotation = Vector.new(0, -10 / 50.0)
-  sprites[PlayerSprite.RIGHT_LOWER_LEG].offsetBeforeRotation = Vector.new(0, -10 / 50.0)
-  sprites[PlayerSprite.LEFT_UPPER_ARM].offsetBeforeRotation = Vector.new(0, 15 / 50.0)
-  sprites[PlayerSprite.RIGHT_UPPER_ARM].offsetBeforeRotation = Vector.new(0, 15 / 50.0)
-  sprites[PlayerSprite.LEFT_LOWER_ARM].offsetBeforeRotation = Vector.new(0, -9 / 50.0)
-  sprites[PlayerSprite.RIGHT_LOWER_ARM].offsetBeforeRotation = Vector.new(0, -9 / 50.0)
-
-  return sprites
-}
-
 class Player : Entity {
   var jumpKey bool
   var crouchKey bool
@@ -173,9 +43,9 @@ class Player : Entity {
     # box on top (so it has width) and behaves like a point on
     # bottom (so it slides down when walking off ledges)
     polygon = Polygon.new(center, [
-      Vector.new(PLAYER_WIDTH / 2, PLAYER_HEIGHT / 2),
-      Vector.new(-PLAYER_WIDTH / 2, PLAYER_HEIGHT / 2),
-      Vector.new(0, -PLAYER_HEIGHT / 2),
+      Vector.new(WIDTH / 2, HEIGHT / 2),
+      Vector.new(-WIDTH / 2, HEIGHT / 2),
+      Vector.new(0, -HEIGHT / 2),
     ])
 
     # physics stuff
@@ -238,7 +108,7 @@ class Player : Entity {
           # # TODO: HAD TO COMMENT THIS OUT BECAUSE Y VELOCITY IS BIGGER THAN 0.1, WHY IS THIS
           # Math.abs(velocity.y) < 0.1 &&
           Math.abs(relativePos.y) <= 0.01 && Math.abs(relativePos.x) < 0.1 {
-        velocity = Vector.new(0, PLAYER_SUPER_JUMP_SPEED)
+        velocity = Vector.new(0, SUPER_JUMP_SPEED)
         isSuperJumping = true
       }
 
@@ -334,7 +204,7 @@ class Player : Entity {
 
         # if the other player is super jumping, make us super jumping too!
         if gameState.getOtherPlayer(self).isSuperJumping {
-          velocity.y = PLAYER_SUPER_JUMP_SPEED
+          velocity.y = SUPER_JUMP_SPEED
           isSuperJumping = true
         }
       }
@@ -366,12 +236,12 @@ class Player : Entity {
     # accelerate left and right (but not on ceilings, unless you are also on the ground for diagonal corners)
     if onGround || !onCeiling {
       if moveLeft {
-        velocity.x -= PLAYER_ACCELERATION * seconds
-        velocity.x = Math.max(velocity.x, -PLAYER_MAX_SPEED)
+        velocity.x -= ACCELERATION * seconds
+        velocity.x = Math.max(velocity.x, -MAX_SPEED)
       }
       if moveRight {
-        velocity.x += PLAYER_ACCELERATION * seconds
-        velocity.x = Math.min(velocity.x, PLAYER_MAX_SPEED)
+        velocity.x += ACCELERATION * seconds
+        velocity.x = Math.min(velocity.x, MAX_SPEED)
       }
     }
 
@@ -403,13 +273,13 @@ class Player : Entity {
     if state == .CLAMBER {
       # clamber left
       if leftKey && ref_closestPointWorld.value.x - polygon.getCenter.x < 0 {
-        velocity.x -= PLAYER_CLAMBER_ACCEL_X * seconds
-        velocity.y += PLAYER_CLAMBER_ACCEL_Y * seconds
+        velocity.x -= CLAMBER_ACCEL_X * seconds
+        velocity.y += CLAMBER_ACCEL_Y * seconds
       }
       # clamber right
       if rightKey && ref_closestPointWorld.value.x - polygon.getCenter.x > 0 {
-        velocity.x += PLAYER_CLAMBER_ACCEL_X * seconds
-        velocity.y += PLAYER_CLAMBER_ACCEL_Y * seconds
+        velocity.x += CLAMBER_ACCEL_X * seconds
+        velocity.y += CLAMBER_ACCEL_Y * seconds
       }
     }
 
@@ -423,7 +293,7 @@ class Player : Entity {
       if crouchKey {
         velocity *= Math.pow(0.000001, seconds)
       } else {
-        velocity.y -= PLAYER_GRAVITY * seconds
+        velocity.y -= GRAVITY * seconds
 
         # If running down on a diagonal floor, don't let the player run off
         if !jumpKey && leftKey != rightKey && onDiagLastTick && edgeQuad.edge(.FLOOR).segment.normal.y < 0.99 {
@@ -432,7 +302,7 @@ class Player : Entity {
         }
       }
     } else {
-      velocity.y -= PLAYER_GRAVITY * seconds
+      velocity.y -= GRAVITY * seconds
     }
 
     onDiagLastTick = state == .FLOOR && edgeQuad.edge(.FLOOR).segment.normal.y < 0.99
@@ -458,7 +328,7 @@ class Player : Entity {
 
     polygon.moveBy(deltaPosition)
 
-    if actualVelocity.y < -PLAYER_DEATH_SPEED && newContact != null && newContact.normal.y > 0.9 {
+    if actualVelocity.y < -DEATH_SPEED && newContact != null && newContact.normal.y > 0.9 {
       setDead(true)
       onDeath
     }
@@ -578,7 +448,7 @@ class Player : Entity {
         if actualVelocity.x < 0 { facingRight = false }
         else if actualVelocity.x > 0 { facingRight = true }
 
-        if actualVelocity.y > -PLAYER_DEATH_SPEED {
+        if actualVelocity.y > -DEATH_SPEED {
           var percent = actualVelocity.y / 4
           percent = (percent < 0) ? 1 / (1 - percent) - 1 : 1 - 1 / (1 + percent)
           percent = 0.5 - 0.5 * percent
@@ -594,7 +464,7 @@ class Player : Entity {
         CollisionDetector.closestToEntityWorld(self, 2, ref_shapePoint, ref_worldPoint)
 
         # self should be from -0.5 to 0.5, so add 0.5 so it is from 0 to 1
-        var percent = (getCenter.y - ref_worldPoint.value.y) / PLAYER_HEIGHT
+        var percent = (getCenter.y - ref_worldPoint.value.y) / HEIGHT
         percent += 0.5
 
         frame = Keyframe.tween(clamberingKeyframes[0], clamberingKeyframes[1], percent)
@@ -627,7 +497,7 @@ class Player : Entity {
   over draw(c Context) {
     if !isDead {
       if isSuperJumping {
-        var alpha = Math.max(0, Math.min(1, velocity.y / PLAYER_SUPER_JUMP_SPEED))
+        var alpha = Math.max(0, Math.min(1, velocity.y / SUPER_JUMP_SPEED))
         c.save
         c.setStrokeColor(Color.new(255, 255, 255, (alpha * 255) as int))
         c.setStrokeThickness(3 / gameScale)
@@ -639,5 +509,136 @@ class Player : Entity {
       c.setStrokeColor(.BLACK)
       sprites[PlayerSprite.TORSO].draw(c)
     }
+  }
+}
+
+namespace Player {
+  const PAUSE_AFTER_DEATH = 2.0
+  const RESPAWN_INTERPOLATION_TIME = 1.0
+  const PAUSE_BEFORE_RESPAWN = 0.3
+  const ACCELERATION = 50.0
+  const MAX_SPEED = 8.0
+  const WIDTH = 0.2
+  const HEIGHT = 0.75
+  const SUPER_JUMP_SPEED = 10.0
+  const CLAMBER_ACCEL_X = 5.0
+  const CLAMBER_ACCEL_Y = 10.0
+  const DEATH_SPEED = 15.0
+  const GRAVITY = 10.0
+  const SLIDE_PARTICLE_TIMER_PERIOD = 1.0 / 5
+  const SUPER_PARTICLE_TIMER_PERIOD = 1.0 / 40
+  const JUMP_MIN_WAIT = 0.5
+  const WALL_FRICTION = 0.1
+
+  enum PlayerState {
+    FLOOR
+    AIR
+    CLAMBER
+    LEFT_WALL
+    RIGHT_WALL
+  }
+
+  const runningKeyframes = [
+    Keyframe.new(Vector.new(0, -5 / 50.0), [5, -10, 65, -55, 20, 40, -20, -30, -30, 10]).degreesToRadians,
+    Keyframe.new(Vector.new(0, -2 / 50.0), [5, -10, 35, -25, 0, 30, 18, -110, 0, 20]).degreesToRadians,
+    Keyframe.new(Vector.new(0, 0), [5, -10, 10, -30, -20, 20, 60, -100, 10, 30]).degreesToRadians,
+
+    Keyframe.new(Vector.new(0, -5 / 50.0), [5, -10, -20, -30, -30, 10, 65, -55, 20, 40]).degreesToRadians,
+    Keyframe.new(Vector.new(0, -2 / 50.0), [5, -10, 18, -110, 0, 20, 35, -25, 0, 30]).degreesToRadians,
+    Keyframe.new(Vector.new(0, 0), [5, -10, 60, -100, 10, 30, 10, -30, -20, 20]).degreesToRadians,
+  ]
+  const jumpingKeyframes = [
+    Keyframe.new(Vector.new(0, 0), [0, -10, 150, -170, -40, 30, -30, -20, 20, 150]).degreesToRadians,
+    Keyframe.new(Vector.new(0, 0), [-20, 10, 60, -100, -80, 30, 30, -20, 30, 30]).degreesToRadians,
+  ]
+  const wallSlidingKeyframe =
+    Keyframe.new(Vector.new((0.4 - WIDTH) / 2, 0), [0, -10, 150, -130, 140, 50, 50, -30, 50, 130]).degreesToRadians
+  const crouchingKeyframe =
+    Keyframe.new(Vector.new(0, -0.2), [30, -30, 130, -110, -30, 40, 60, -120, 20, 20]).degreesToRadians
+  const fallingKeyframes = [
+    Keyframe.new(Vector.new(0, 0), [-20, 5, 10, -30, -120, -30, 40, -20, 120, 30]).degreesToRadians,
+    Keyframe.new(Vector.new(0, 0), [-20, 5, 10, -30, -130, -60, 40, -20, 150, 50]).degreesToRadians,
+  ]
+  const clamberingKeyframes = [
+    Keyframe.new(Vector.new((0.4 - WIDTH) / 2, 0), [0, -10, 150, -130, 140, 50, 50, -30, 50, 130]).degreesToRadians,
+    Keyframe.new(Vector.new(0, -0.2), [30, -30, 160, -180, -30, 40, 20, -10, 20, 20]).degreesToRadians,
+  ]
+
+  enum PlayerSprite {
+    HEAD
+    TORSO
+    LEFT_UPPER_LEG
+    LEFT_LOWER_LEG
+    LEFT_UPPER_ARM
+    LEFT_LOWER_ARM
+    RIGHT_UPPER_LEG
+    RIGHT_LOWER_LEG
+    RIGHT_UPPER_ARM
+    RIGHT_LOWER_ARM
+    NUM_SPRITES
+  }
+
+  def drawCallbackQuad(x1 double, x2 double, y1 double, y2 double) fn(Context) {
+    return c => {
+      c.beginPath
+      c.moveTo(x1 / 50, y1 / 50)
+      c.lineTo(x2 / 50, y2 / 50)
+      c.lineTo(-x2 / 50, y2 / 50)
+      c.lineTo(-x1 / 50, y1 / 50)
+      c.closePath
+      c.fill
+      c.stroke
+    }
+  }
+
+  def drawCallbackHead(x1 double, x2 double, y1 double, y2 double, y3 double) fn(Context) {
+    var quad = drawCallbackQuad(x1, x2, y1, y2)
+    return c => {
+      quad(c)
+      c.beginPath
+      c.moveTo(0, y2 / 50)
+      c.lineTo(0, y3 / 50 - 0.02)
+      c.arc(0, y3 / 50, 0.02, -Math.PI / 2, Math.PI * 3 / 2, false)
+      c.stroke
+    }
+  }
+
+  def createPlayerSprites List<Sprite> {
+    var sprites List<Sprite> = []
+
+    for i in 0..PlayerSprite.NUM_SPRITES {
+      sprites.append(Sprite.new)
+    }
+
+    sprites[PlayerSprite.HEAD].drawCallback = drawCallbackHead(2.5, 2.5, 1, 10, 18)
+    sprites[PlayerSprite.TORSO].drawCallback = drawCallbackQuad(1.5, 1.5, 0, 15)
+    sprites[PlayerSprite.LEFT_UPPER_LEG].drawCallback = drawCallbackQuad(1.5, 1, 0, -10)
+    sprites[PlayerSprite.LEFT_LOWER_LEG].drawCallback = drawCallbackQuad(1, 1.5, 0, -10)
+    sprites[PlayerSprite.LEFT_UPPER_ARM].drawCallback = drawCallbackQuad(1.5, 0.5, 0, -9)
+    sprites[PlayerSprite.LEFT_LOWER_ARM].drawCallback = drawCallbackQuad(0.5, 1.5, 0, -10)
+    sprites[PlayerSprite.RIGHT_UPPER_LEG].drawCallback = sprites[PlayerSprite.LEFT_UPPER_LEG].drawCallback
+    sprites[PlayerSprite.RIGHT_LOWER_LEG].drawCallback = sprites[PlayerSprite.LEFT_LOWER_LEG].drawCallback
+    sprites[PlayerSprite.RIGHT_UPPER_ARM].drawCallback = sprites[PlayerSprite.LEFT_UPPER_ARM].drawCallback
+    sprites[PlayerSprite.RIGHT_LOWER_ARM].drawCallback = sprites[PlayerSprite.LEFT_LOWER_ARM].drawCallback
+
+    sprites[PlayerSprite.HEAD].setParent(sprites[PlayerSprite.TORSO])
+    sprites[PlayerSprite.LEFT_UPPER_ARM].setParent(sprites[PlayerSprite.TORSO])
+    sprites[PlayerSprite.RIGHT_UPPER_ARM].setParent(sprites[PlayerSprite.TORSO])
+    sprites[PlayerSprite.LEFT_LOWER_ARM].setParent(sprites[PlayerSprite.LEFT_UPPER_ARM])
+    sprites[PlayerSprite.RIGHT_LOWER_ARM].setParent(sprites[PlayerSprite.RIGHT_UPPER_ARM])
+    sprites[PlayerSprite.LEFT_UPPER_LEG].setParent(sprites[PlayerSprite.TORSO])
+    sprites[PlayerSprite.RIGHT_UPPER_LEG].setParent(sprites[PlayerSprite.TORSO])
+    sprites[PlayerSprite.LEFT_LOWER_LEG].setParent(sprites[PlayerSprite.LEFT_UPPER_LEG])
+    sprites[PlayerSprite.RIGHT_LOWER_LEG].setParent(sprites[PlayerSprite.RIGHT_UPPER_LEG])
+
+    sprites[PlayerSprite.HEAD].offsetBeforeRotation = Vector.new(0, 17 / 50.0)
+    sprites[PlayerSprite.LEFT_LOWER_LEG].offsetBeforeRotation = Vector.new(0, -10 / 50.0)
+    sprites[PlayerSprite.RIGHT_LOWER_LEG].offsetBeforeRotation = Vector.new(0, -10 / 50.0)
+    sprites[PlayerSprite.LEFT_UPPER_ARM].offsetBeforeRotation = Vector.new(0, 15 / 50.0)
+    sprites[PlayerSprite.RIGHT_UPPER_ARM].offsetBeforeRotation = Vector.new(0, 15 / 50.0)
+    sprites[PlayerSprite.LEFT_LOWER_ARM].offsetBeforeRotation = Vector.new(0, -9 / 50.0)
+    sprites[PlayerSprite.RIGHT_LOWER_ARM].offsetBeforeRotation = Vector.new(0, -9 / 50.0)
+
+    return sprites
   }
 }
