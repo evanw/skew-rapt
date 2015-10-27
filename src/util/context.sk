@@ -54,7 +54,3 @@ interface Context {
   def strokeRect(x double, y double, width double, height double)
   def arc(x double, y double, r double, startAngle double, endAngle double, anticlockwise bool)
 }
-
-interface DrawCallback {
-  def draw(c Context)
-}

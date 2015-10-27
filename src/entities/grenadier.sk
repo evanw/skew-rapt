@@ -7,7 +7,7 @@ class Grenadier : SpawningEnemy {
   def new(center Vector, target Player) {
     super(.GRENADIER, center, WIDTH, HEIGHT, 0, SHOOT_FREQ, randInRange(0, SHOOT_FREQ))
     self.target = target
-    bodySprite.drawCallback = DrawGrenadier.INSTANCE
+    bodySprite.drawCallback = drawCallback
   }
 
   over canCollide bool {
@@ -66,10 +66,8 @@ namespace Grenadier {
   # Max speed at which a Grenadier can throw an enemy
   const RANGE = 8.0
   const SHOOT_FREQ = 1.2
-}
 
-class DrawGrenadier :: DrawCallback {
-  def draw(c Context) {
+  const drawCallback = (c Context) => {
     const barrelLength = 0.25
     const outerRadius = 0.25
     const innerRadius = 0.175
@@ -89,8 +87,4 @@ class DrawGrenadier :: DrawCallback {
     c.fill
     c.stroke
   }
-}
-
-namespace DrawGrenadier {
-  const INSTANCE = new
 }

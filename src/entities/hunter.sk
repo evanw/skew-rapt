@@ -14,9 +14,9 @@ class Hunter : RotatingEnemy {
 
   def new(center Vector) {
     super(.HUNTER, center, RADIUS, 0, ELASTICITY)
-    sprites[BODY].drawCallback = DrawHunterBody.INSTANCE
-    sprites[CLAW1].drawCallback = DrawHunterClaw.INSTANCE
-    sprites[CLAW2].drawCallback = DrawHunterClaw.INSTANCE
+    sprites[BODY].drawCallback = drawCallbackBody
+    sprites[CLAW1].drawCallback = drawCallbackClaw
+    sprites[CLAW2].drawCallback = drawCallbackClaw
     sprites[CLAW1].setParent(sprites[BODY])
     sprites[CLAW2].setParent(sprites[BODY])
     sprites[CLAW2].flip = true
@@ -166,22 +166,14 @@ namespace Hunter {
   const FLEE_RANGE = 10.0
   const CHASE_RANGE = 8.0
   const LOOKAHEAD = 20.0
-}
 
-class DrawHunterBody :: DrawCallback {
-  def draw(c Context) {
+  const drawCallbackBody = (c Context) => {
     c.beginPath
     c.arc(0, 0, 0.1, 0, TWOPI, false)
     c.stroke
   }
-}
 
-namespace DrawHunterBody {
-  const INSTANCE = new
-}
-
-class DrawHunterClaw :: DrawCallback {
-  def draw(c Context) {
+  const drawCallbackClaw = (c Context) => {
     c.beginPath
     c.moveTo(0, 0.1)
     for i in 0..7 {
@@ -190,8 +182,4 @@ class DrawHunterClaw :: DrawCallback {
     c.arc(0, 0.2, 0.3, 0.5 * Math.PI, -0.5 * Math.PI, true)
     c.stroke
   }
-}
-
-namespace DrawHunterClaw {
-  const INSTANCE = new
 }

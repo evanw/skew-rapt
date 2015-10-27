@@ -8,11 +8,11 @@ class Stalacbat : FreefallEnemy {
     self.target = target
 
     # Draw circle for body
-    sprites[SPRITE_BODY].drawCallback = DrawStalacbatBody.INSTANCE
+    sprites[SPRITE_BODY].drawCallback = drawCallbackBody
 
     # Draw the two wings
-    sprites[SPRITE_LEFT_WING].drawCallback = DrawStalacbatWing.INSTANCE
-    sprites[SPRITE_RIGHT_WING].drawCallback = DrawStalacbatWing.INSTANCE
+    sprites[SPRITE_LEFT_WING].drawCallback = drawCallbackWing
+    sprites[SPRITE_RIGHT_WING].drawCallback = drawCallbackWing
 
     sprites[SPRITE_LEFT_WING].setParent(sprites[SPRITE_BODY])
     sprites[SPRITE_RIGHT_WING].setParent(sprites[SPRITE_BODY])
@@ -85,24 +85,16 @@ namespace Stalacbat {
   const SPRITE_BODY = 0
   const SPRITE_LEFT_WING = 1
   const SPRITE_RIGHT_WING = 2
-}
 
-class DrawStalacbatBody :: DrawCallback {
-  def draw(c Context) {
+  const drawCallbackBody = (c Context) => {
     c.setStrokeColor(.BLACK)
     c.beginPath
     c.arc(0, 0, 0.1, 0, TWOPI, false)
     c.stroke
     c.fill
   }
-}
 
-namespace DrawStalacbatBody {
-  const INSTANCE = new
-}
-
-class DrawStalacbatWing :: DrawCallback {
-  def draw(c Context) {
+  const drawCallbackWing = (c Context) => {
     c.setStrokeColor(.BLACK)
     c.beginPath
     c.arc(0, 0, 0.2, 0, Math.PI / 2, false)
@@ -114,8 +106,4 @@ class DrawStalacbatWing :: DrawCallback {
     c.lineTo(0.1, 0.1)
     c.stroke
   }
-}
-
-namespace DrawStalacbatWing {
-  const INSTANCE = new
 }

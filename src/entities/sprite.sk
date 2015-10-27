@@ -6,7 +6,7 @@ class Sprite {
   var parent Sprite = null
   var firstChild Sprite = null
   var nextSibling Sprite = null
-  var drawCallback DrawCallback = null
+  var drawCallback fn(Context) = null
 
   def clone Sprite {
     var sprite = new
@@ -50,7 +50,7 @@ class Sprite {
     c.rotate(angle)
     c.translate(offsetAfterRotation.x, offsetAfterRotation.y)
 
-    drawCallback.draw(c)
+    drawCallback(c)
     for sprite = firstChild; sprite != null; sprite = sprite.nextSibling {
       sprite.draw(c)
     }

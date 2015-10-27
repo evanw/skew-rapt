@@ -98,11 +98,11 @@ namespace Popper {
       sprites.append(Sprite.new)
     }
 
-    sprites[BODY].drawCallback = DrawPopperBody.INSTANCE
+    sprites[BODY].drawCallback = drawCallbackBody
 
     for i in 0..4 {
-      sprites[LEG1_UPPER + i].drawCallback = DrawPopperLeg.INSTANCE
-      sprites[LEG1_LOWER + i].drawCallback = DrawPopperLeg.INSTANCE
+      sprites[LEG1_UPPER + i].drawCallback = drawCallbackLeg
+      sprites[LEG1_LOWER + i].drawCallback = drawCallbackLeg
       sprites[LEG1_UPPER + i].setParent(sprites[BODY])
       sprites[LEG1_LOWER + i].setParent(sprites[LEG1_UPPER + i])
       sprites[LEG1_LOWER + i].offsetBeforeRotation = Vector.new(0, -LEG_LENGTH)
@@ -115,10 +115,8 @@ namespace Popper {
 
     return sprites
   }
-}
 
-class DrawPopperBody :: DrawCallback {
-  def draw(c Context) {
+  const drawCallbackBody = (c Context) => {
     c.setStrokeColor(.BLACK)
     c.setFillColor(.BLACK)
     c.beginPath
@@ -143,22 +141,12 @@ class DrawPopperBody :: DrawCallback {
     c.arc(0.075, 0, 0.04, 0, TWOPI, false)
     c.fill
   }
-}
 
-namespace DrawPopperBody {
-  const INSTANCE = new
-}
-
-class DrawPopperLeg :: DrawCallback {
-  def draw(c Context) {
+  const drawCallbackLeg = (c Context) => {
     c.setStrokeColor(.BLACK)
     c.beginPath
     c.moveTo(0, 0)
     c.lineTo(0, -Popper.LEG_LENGTH)
     c.stroke
   }
-}
-
-namespace DrawPopperLeg {
-  const INSTANCE = new
 }

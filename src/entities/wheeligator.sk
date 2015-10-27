@@ -7,7 +7,7 @@ class Wheeligator : WalkingEnemy {
   def new(center Vector, angle double) {
     super(.WHEELIGATOR, center, RADIUS, ELASTICITY)
     startsRight = Math.cos(angle) > 0
-    bodySprite.drawCallback = DrawWheeligator.INSTANCE
+    bodySprite.drawCallback = drawCallback
   }
 
   over move(seconds double) Vector {
@@ -51,10 +51,8 @@ namespace Wheeligator {
   const SPEED = 3.0
   const ELASTICITY = 1.0
   const FLOOR_ELASTICITY = 0.3
-}
 
-class DrawWheeligator :: DrawCallback {
-  def draw(c Context) {
+  const drawCallback = (c Context) => {
     const rim = 0.1
 
     c.setStrokeColor(.BLACK)
@@ -73,8 +71,4 @@ class DrawWheeligator :: DrawCallback {
       c.fill
     }
   }
-}
-
-namespace DrawWheeligator {
-  const INSTANCE = new
 }

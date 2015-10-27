@@ -6,9 +6,9 @@ class SpikeBall : Enemy {
     super(.SPIKE_BALL, 0)
     hitCircle = Circle.new(center, RADIUS)
 
-    sprites[0].drawCallback = DrawSpikes.new(11)
-    sprites[1].drawCallback = DrawSpikes.new(13)
-    sprites[2].drawCallback = DrawSpikes.new(7)
+    sprites[0].drawCallback = drawCallback(11)
+    sprites[1].drawCallback = drawCallback(13)
+    sprites[2].drawCallback = drawCallback(7)
 
     sprites[1].setParent(sprites[0])
     sprites[2].setParent(sprites[0])
@@ -40,28 +40,24 @@ class SpikeBall : Enemy {
 
 namespace SpikeBall {
   const RADIUS = 0.2
-}
 
-class DrawSpikes :: DrawCallback {
-  var radii List<double> = []
-
-  def new(count int) {
+  def drawCallback(count int) fn(Context) {
+    var radii List<double> = []
     for i in 0..count {
       radii.append(SpikeBall.RADIUS * randInRange(0.5, 1.5))
     }
-  }
-
-  def draw(c Context) {
-    c.setStrokeColor(.BLACK)
-    c.beginPath
-    var count = radii.count
-    var scale = TWOPI / count
-    for i in 0..count {
-      var angle = i * scale
-      var radius = radii[i]
-      c.moveTo(0, 0)
-      c.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius)
+    return c => {
+      c.setStrokeColor(.BLACK)
+      c.beginPath
+      var count = radii.count
+      var scale = TWOPI / count
+      for i in 0..count {
+        var angle = i * scale
+        var radius = radii[i]
+        c.moveTo(0, 0)
+        c.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius)
+      }
+      c.stroke
     }
-    c.stroke
   }
 }

@@ -9,8 +9,8 @@ class Rocket : RotatingEnemy {
     super(.ROCKET, center, RADIUS, heading, ELASTICITY)
     self.target = target
     velocity = Vector.fromAngle(heading) * SPEED
-    sprites[SPRITE_RED].drawCallback = DrawRocket.new(.RED)
-    sprites[SPRITE_BLUE].drawCallback = DrawRocket.new(.BLUE)
+    sprites[SPRITE_RED].drawCallback = drawCallback(.RED)
+    sprites[SPRITE_BLUE].drawCallback = drawCallback(.BLUE)
   }
 
   def calcHeading(seconds double) {
@@ -113,23 +113,21 @@ namespace Rocket {
   const ELASTICITY = 1.0
   const HEADING_CONSTRAINT_TIME = 0.3 # In seconds, the amount of time the Rocket's direction is fixed
   const PARTICLE_FREQUENCY = 0.03
-}
 
-class DrawRocket :: DrawCallback {
-  var color Color
-
-  def draw(c Context) {
-    const size = 0.075
-    c.setFillColor(color)
-    c.setStrokeColor(.BLACK)
-    c.beginPath
-    c.moveTo(-Rocket.RADIUS, size)
-    c.lineTo(Rocket.RADIUS - size, size)
-    c.lineTo(Rocket.RADIUS, 0)
-    c.lineTo(Rocket.RADIUS - size, -size)
-    c.lineTo(-Rocket.RADIUS, -size)
-    c.closePath
-    c.fill
-    c.stroke
+  def drawCallback(color Color) fn(Context) {
+    return c => {
+      const size = 0.075
+      c.setFillColor(color)
+      c.setStrokeColor(.BLACK)
+      c.beginPath
+      c.moveTo(-Rocket.RADIUS, size)
+      c.lineTo(Rocket.RADIUS - size, size)
+      c.lineTo(Rocket.RADIUS, 0)
+      c.lineTo(Rocket.RADIUS - size, -size)
+      c.lineTo(-Rocket.RADIUS, -size)
+      c.closePath
+      c.fill
+      c.stroke
+    }
   }
 }

@@ -1,64 +1,9 @@
-class DrawDoomMagnet :: DrawCallback {
-  def draw(c Context) {
-    const length = 0.15
-    const outerRadius = 0.15
-    const innerRadius = 0.05
-
-    for scale in [-1, 1] {
-      c.setFillColor(.RED)
-      c.beginPath
-      c.moveTo(-outerRadius - length, scale * innerRadius)
-      c.lineTo(-outerRadius - length, scale * outerRadius)
-      c.lineTo(-outerRadius - length + (outerRadius - innerRadius), scale * outerRadius)
-      c.lineTo(-outerRadius - length + (outerRadius - innerRadius), scale * innerRadius)
-      c.fill
-
-      c.setFillColor(.BLUE)
-      c.beginPath
-      c.moveTo(outerRadius + length, scale * innerRadius)
-      c.lineTo(outerRadius + length, scale * outerRadius)
-      c.lineTo(outerRadius + length - (outerRadius - innerRadius), scale * outerRadius)
-      c.lineTo(outerRadius + length - (outerRadius - innerRadius), scale * innerRadius)
-      c.fill
-    }
-    c.setStrokeColor(.BLACK)
-
-    # draw one prong of the magnet
-    c.beginPath
-    c.arc(outerRadius, 0, outerRadius, 1.5 * Math.PI, 0.5 * Math.PI, true)
-    c.lineTo(outerRadius + length, outerRadius)
-    c.lineTo(outerRadius + length, innerRadius)
-
-    c.arc(outerRadius, 0, innerRadius, 0.5 * Math.PI, 1.5 * Math.PI, false)
-    c.lineTo(outerRadius + length, -innerRadius)
-    c.lineTo(outerRadius + length, -outerRadius)
-    c.lineTo(outerRadius, -outerRadius)
-    c.stroke
-
-    # other prong
-    c.beginPath
-    c.arc(-outerRadius, 0, outerRadius, 1.5 * Math.PI, 2.5 * Math.PI, false)
-    c.lineTo(-outerRadius - length, outerRadius)
-    c.lineTo(-outerRadius - length, innerRadius)
-
-    c.arc(-outerRadius, 0, innerRadius, 2.5 * Math.PI, 1.5 * Math.PI, true)
-    c.lineTo(-outerRadius - length, -innerRadius)
-    c.lineTo(-outerRadius - length, -outerRadius)
-    c.lineTo(-outerRadius, -outerRadius)
-    c.stroke
-  }
-}
-
-namespace DrawDoomMagnet {
-  const INSTANCE = new
-}
-
 class DoomMagnet : RotatingEnemy {
   var bodySprite = Sprite.new
 
   def new(center Vector) {
     super(.MAGNET, center, RADIUS, 0, ELASTICITY)
-    bodySprite.drawCallback = DrawDoomMagnet.INSTANCE
+    bodySprite.drawCallback = drawCallback
   }
 
   over avoidsSpawn bool {
@@ -123,4 +68,53 @@ namespace DoomMagnet {
   const RANGE = 10.0
   const ACCEL = 2.0
   const MAX_ROTATION = TWOPI
+
+  const drawCallback = (c Context) => {
+    const length = 0.15
+    const outerRadius = 0.15
+    const innerRadius = 0.05
+
+    for scale in [-1, 1] {
+      c.setFillColor(.RED)
+      c.beginPath
+      c.moveTo(-outerRadius - length, scale * innerRadius)
+      c.lineTo(-outerRadius - length, scale * outerRadius)
+      c.lineTo(-outerRadius - length + (outerRadius - innerRadius), scale * outerRadius)
+      c.lineTo(-outerRadius - length + (outerRadius - innerRadius), scale * innerRadius)
+      c.fill
+
+      c.setFillColor(.BLUE)
+      c.beginPath
+      c.moveTo(outerRadius + length, scale * innerRadius)
+      c.lineTo(outerRadius + length, scale * outerRadius)
+      c.lineTo(outerRadius + length - (outerRadius - innerRadius), scale * outerRadius)
+      c.lineTo(outerRadius + length - (outerRadius - innerRadius), scale * innerRadius)
+      c.fill
+    }
+    c.setStrokeColor(.BLACK)
+
+    # draw one prong of the magnet
+    c.beginPath
+    c.arc(outerRadius, 0, outerRadius, 1.5 * Math.PI, 0.5 * Math.PI, true)
+    c.lineTo(outerRadius + length, outerRadius)
+    c.lineTo(outerRadius + length, innerRadius)
+
+    c.arc(outerRadius, 0, innerRadius, 0.5 * Math.PI, 1.5 * Math.PI, false)
+    c.lineTo(outerRadius + length, -innerRadius)
+    c.lineTo(outerRadius + length, -outerRadius)
+    c.lineTo(outerRadius, -outerRadius)
+    c.stroke
+
+    # other prong
+    c.beginPath
+    c.arc(-outerRadius, 0, outerRadius, 1.5 * Math.PI, 2.5 * Math.PI, false)
+    c.lineTo(-outerRadius - length, outerRadius)
+    c.lineTo(-outerRadius - length, innerRadius)
+
+    c.arc(-outerRadius, 0, innerRadius, 2.5 * Math.PI, 1.5 * Math.PI, true)
+    c.lineTo(-outerRadius - length, -innerRadius)
+    c.lineTo(-outerRadius - length, -outerRadius)
+    c.lineTo(-outerRadius, -outerRadius)
+    c.stroke
+  }
 }

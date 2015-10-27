@@ -6,7 +6,7 @@ class WallCrawler : WalkingEnemy {
   def new(center Vector, direction double) {
     super(.CRAWLER, center, RADIUS, 0)
     velocity = Vector.fromAngle(direction)
-    bodySprite.drawCallback = DrawWallCrawler.INSTANCE
+    bodySprite.drawCallback = drawCallback
   }
 
   # Rotates about the closest point in the world
@@ -59,10 +59,8 @@ namespace WallCrawler {
   const RADIUS = 0.25
   const PULL_FACTOR = 0.9
   const PUSH_FACTOR = 0.11
-}
 
-class DrawWallCrawler :: DrawCallback {
-  def draw(c Context) {
+  const drawCallback = (c Context) => {
     const space = 0.15
     c.setFillColor(.BLACK)
     c.setStrokeColor(.BLACK)
@@ -95,8 +93,4 @@ class DrawWallCrawler :: DrawCallback {
     c.arc(0, 0, 0.05, 0, TWOPI, false)
     c.fill
   }
-}
-
-namespace DrawWallCrawler {
-  const INSTANCE = new
 }

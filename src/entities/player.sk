@@ -64,13 +64,8 @@ enum PlayerSprite {
   NUM_SPRITES
 }
 
-class DrawPlayerQuad :: DrawCallback {
-  var x1 double
-  var x2 double
-  var y1 double
-  var y2 double
-
-  def draw(c Context) {
+def drawCallbackQuad(x1 double, x2 double, y1 double, y2 double) fn(Context) {
+  return c => {
     c.beginPath
     c.moveTo(x1 / 50, y1 / 50)
     c.lineTo(x2 / 50, y2 / 50)
@@ -82,11 +77,10 @@ class DrawPlayerQuad :: DrawCallback {
   }
 }
 
-class DrawPlayerHead : DrawPlayerQuad {
-  var y3 double
-
-  over draw(c Context) {
-    super(c)
+def drawCallbackHead(x1 double, x2 double, y1 double, y2 double, y3 double) fn(Context) {
+  var quad = drawCallbackQuad(x1, x2, y1, y2)
+  return c => {
+    quad(c)
     c.beginPath
     c.moveTo(0, y2 / 50)
     c.lineTo(0, y3 / 50 - 0.02)
@@ -102,12 +96,12 @@ def createPlayerSprites List<Sprite> {
     sprites.append(Sprite.new)
   }
 
-  sprites[PlayerSprite.HEAD].drawCallback = DrawPlayerHead.new(2.5, 2.5, 1, 10, 18)
-  sprites[PlayerSprite.TORSO].drawCallback = DrawPlayerQuad.new(1.5, 1.5, 0, 15)
-  sprites[PlayerSprite.LEFT_UPPER_LEG].drawCallback = DrawPlayerQuad.new(1.5, 1, 0, -10)
-  sprites[PlayerSprite.LEFT_LOWER_LEG].drawCallback = DrawPlayerQuad.new(1, 1.5, 0, -10)
-  sprites[PlayerSprite.LEFT_UPPER_ARM].drawCallback = DrawPlayerQuad.new(1.5, 0.5, 0, -9)
-  sprites[PlayerSprite.LEFT_LOWER_ARM].drawCallback = DrawPlayerQuad.new(0.5, 1.5, 0, -10)
+  sprites[PlayerSprite.HEAD].drawCallback = drawCallbackHead(2.5, 2.5, 1, 10, 18)
+  sprites[PlayerSprite.TORSO].drawCallback = drawCallbackQuad(1.5, 1.5, 0, 15)
+  sprites[PlayerSprite.LEFT_UPPER_LEG].drawCallback = drawCallbackQuad(1.5, 1, 0, -10)
+  sprites[PlayerSprite.LEFT_LOWER_LEG].drawCallback = drawCallbackQuad(1, 1.5, 0, -10)
+  sprites[PlayerSprite.LEFT_UPPER_ARM].drawCallback = drawCallbackQuad(1.5, 0.5, 0, -9)
+  sprites[PlayerSprite.LEFT_LOWER_ARM].drawCallback = drawCallbackQuad(0.5, 1.5, 0, -10)
   sprites[PlayerSprite.RIGHT_UPPER_LEG].drawCallback = sprites[PlayerSprite.LEFT_UPPER_LEG].drawCallback
   sprites[PlayerSprite.RIGHT_LOWER_LEG].drawCallback = sprites[PlayerSprite.LEFT_LOWER_LEG].drawCallback
   sprites[PlayerSprite.RIGHT_UPPER_ARM].drawCallback = sprites[PlayerSprite.LEFT_UPPER_ARM].drawCallback

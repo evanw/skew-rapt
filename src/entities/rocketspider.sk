@@ -113,7 +113,7 @@ class RocketSpider : SpawningEnemy {
     # don't add this death to the stats because it is added in the legs OnDeath method
 
     # add something that looks like the body
-    Particle.custom(DrawSpiderBody.INSTANCE)
+    Particle.custom(drawCallbackBody)
       .position(getCenter)
       .bounces(1)
       .gravity(5)
@@ -175,7 +175,7 @@ namespace RocketSpider {
 
     for i in 0..NUM_SPRITES {
       sprites.append(Sprite.new)
-      sprites[i].drawCallback = i == 0 ? DrawSpiderBody.INSTANCE : DrawSpiderLeg.INSTANCE
+      sprites[i].drawCallback = i == 0 ? drawCallbackBody : drawCallbackLeg
     }
 
     for i in LEG1_TOP..LEG8_TOP + 1 {
@@ -202,10 +202,8 @@ namespace RocketSpider {
 
     return sprites
   }
-}
 
-class DrawSpiderBody :: DrawCallback {
-  def draw(c Context) {
+  const drawCallbackBody = (c Context) => {
     const innerRadius = 0.5
     c.beginPath
     for i in 0..22 {
@@ -219,21 +217,11 @@ class DrawSpiderBody :: DrawCallback {
     }
     c.fill
   }
-}
 
-namespace DrawSpiderBody {
-  const INSTANCE = new
-}
-
-class DrawSpiderLeg :: DrawCallback {
-  def draw(c Context) {
+  const drawCallbackLeg = (c Context) => {
     c.beginPath
     c.moveTo(0, 0)
     c.lineTo(0, -RocketSpider.LEG_HEIGHT)
     c.stroke
   }
-}
-
-namespace DrawSpiderLeg {
-  const INSTANCE = new
 }

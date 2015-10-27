@@ -6,8 +6,8 @@ class JetStream : SpawningEnemy {
   def new(center Vector, direction double) {
     super(.JET_STREAM, center, WIDTH, HEIGHT, 0, SHOOT_FREQ, 0)
     self.direction = direction
-    sprites[SPRITE_A].drawCallback = DrawJetStream.INSTANCE
-    sprites[SPRITE_B].drawCallback = DrawJetStream.INSTANCE
+    sprites[SPRITE_A].drawCallback = drawCallback
+    sprites[SPRITE_B].drawCallback = drawCallback
   }
 
   over canCollide bool {
@@ -81,10 +81,8 @@ namespace JetStream {
 
   const SPRITE_A = 0
   const SPRITE_B = 1
-}
 
-class DrawJetStream :: DrawCallback {
-  def draw(c Context) {
+  const drawCallback = (c Context) => {
     c.setStrokeColor(.BLACK)
     c.beginPath
     for i in 0..JetStream.NUM_BARRELS {
@@ -94,8 +92,4 @@ class DrawJetStream :: DrawCallback {
     }
     c.stroke
   }
-}
-
-namespace DrawJetStream {
-  const INSTANCE = new
 }

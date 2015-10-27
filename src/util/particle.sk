@@ -34,7 +34,7 @@ class Particle {
   var m_velocity = Vector.new(0, 0)
   var m_angle = 0.0
   var m_angularVelocity = 0.0
-  var m_draw DrawCallback = null
+  var m_draw fn(Context) = null
 
   def init(type ParticleType) {
     m_bounces = 0
@@ -116,7 +116,7 @@ class Particle {
         c.save
         c.translate(m_position.x, m_position.y)
         c.rotate(m_angle)
-        m_draw.draw(c)
+        m_draw(c)
         c.restore
       }
     }
@@ -222,7 +222,7 @@ namespace Particle {
   def triangle Particle { return allocate(.TRIANGLE) }
   def line Particle { return allocate(.LINE) }
 
-  def custom(draw DrawCallback) Particle {
+  def custom(draw fn(Context)) Particle {
     var particle = allocate(.CUSTOM)
     particle.m_draw = draw
     return particle

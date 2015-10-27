@@ -7,7 +7,7 @@ class WallAvoider : RotatingEnemy {
   def new(center Vector, target Player) {
     super(.WALL_AVOIDER, center, RADIUS, 0, 0)
     self.target = target
-    bodySprite.drawCallback = DrawWallAvoider.INSTANCE
+    bodySprite.drawCallback = drawCallback
   }
 
   over move(seconds double) Vector {
@@ -81,10 +81,8 @@ class WallAvoider : RotatingEnemy {
 namespace WallAvoider {
   const RADIUS = 0.3
   const ACCEL = 3.3
-}
 
-class DrawWallAvoider :: DrawCallback {
-  def draw(c Context) {
+  const drawCallback = (c Context) => {
     c.beginPath
     c.arc(0, 0, 0.1, 0, TWOPI, false)
     c.fill
@@ -104,8 +102,4 @@ class DrawWallAvoider :: DrawCallback {
     }
     c.stroke
   }
-}
-
-namespace DrawWallAvoider {
-  const INSTANCE = new
 }

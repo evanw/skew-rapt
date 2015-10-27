@@ -6,7 +6,7 @@ class ShockHawk : HoveringEnemy {
   def new(center Vector, target Player) {
     super(.SHOCK_HAWK, center, RADIUS, 0)
     self.target = target
-    bodySprite.drawCallback = DrawShockHawk.INSTANCE
+    bodySprite.drawCallback = drawCallback
   }
 
   over avoidsSpawn bool {
@@ -59,10 +59,8 @@ namespace ShockHawk {
   const ACCEL = 6
   const DECEL = 0.8
   const RANGE = 10.0
-}
 
-class DrawShockHawk :: DrawCallback {
-  def draw(c Context) {
+  const drawCallback = (c Context) => {
     # draw solid center
     c.beginPath
     c.moveTo(0, -0.15)
@@ -87,8 +85,4 @@ class DrawShockHawk :: DrawCallback {
     }
     c.stroke
   }
-}
-
-namespace DrawShockHawk {
-  const INSTANCE = new
 }
