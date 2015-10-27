@@ -1,0 +1,111 @@
+class WallAvoider : RotatingEnemy {
+  var target Player
+  var acceleration = Vector.new(0, 0)
+  var angularVelocity = 0.0
+  var bodySprite = Sprite.new
+
+  def new(center Vector, target Player) {
+    super(.WALL_AVOIDER, center, RADIUS, 0, 0)
+    self.target = target
+    bodySprite.drawCallback = DrawWallAvoider.INSTANCE
+  }
+
+  over move(seconds double) Vector {
+    if target.isDead {
+      velocity.x = 0
+      velocity.y = 0
+      return velocity * seconds
+    }
+
+    var targetDelta = target.getCenter - getCenter
+    var ref_shapePoint = Box<Vector>.new(null)
+    var ref_worldPoint = Box<Vector>.new(null)
+    var closestPointDist = CollisionDetector.closestToEntityWorld(self, 5, ref_shapePoint, ref_worldPoint)
+
+    # If something went horribly, horribly wrong
+    if closestPointDist < 0.001 {
+      return accelerate(Vector.new(0, 0), seconds)
+    }
+
+    acceleration = targetDelta.unit
+    if closestPointDist < Math.INFINITY {
+      var closestPointDelta = ref_worldPoint.value - getCenter
+      var wallAvoidance = -closestPointDelta / (closestPointDist * closestPointDist)
+      acceleration += wallAvoidance
+    }
+    acceleration.normalize
+    acceleration *= ACCEL
+
+    # Time independent version of multiplying by 0.99
+    velocity *= Math.pow(0.366032, seconds)
+    return accelerate(acceleration, seconds)
+  }
+
+  over reactToWorld(contact Contact) {
+    setDead(true)
+  }
+
+  over onDeath {
+    gameState.incrementStat(.ENEMY_DEATHS)
+
+    # fire
+    var position = getCenter
+    for i in 0..50 {
+      var direction = Vector.fromAngle(randInRange(0, TWOPI)) * randInRange(0.5, 17)
+      Particle.triangle
+        .position(position)
+        .velocity(direction)
+        .randomRadius(0.02, 0.15)
+        .randomBounces(0, 4)
+        .randomElasticity(0.05, 0.9)
+        .randomDecay(0.000001, 0.00001)
+        .randomExpand(1.0, 1.2)
+        .color(1, 0.3, 0, 1)
+        .mixColor(1, 0.1, 0, 1)
+    }
+  }
+
+  over afterTick(seconds double) {
+    bodySprite.offsetBeforeRotation = getCenter
+    angularVelocity = (angularVelocity + randInRange(-Math.PI, Math.PI)) * 0.5
+    bodySprite.angle += angularVelocity * seconds
+  }
+
+  over draw(c Context) {
+    c.setFillColor(target == gameState.playerA ? .RED : .BLUE)
+    c.setStrokeColor(.BLACK)
+    bodySprite.draw(c)
+  }
+}
+
+namespace WallAvoider {
+  const RADIUS = 0.3
+  const ACCEL = 3.3
+}
+
+class DrawWallAvoider :: DrawCallback {
+  def draw(c Context) {
+    c.beginPath
+    c.arc(0, 0, 0.1, 0, TWOPI, false)
+    c.fill
+    c.stroke
+
+    c.beginPath
+    for i in 0..4 {
+      var angle = i * (TWOPI / 4)
+      var cos = Math.cos(angle)
+      var sin = Math.sin(angle)
+      c.moveTo(cos * 0.1, sin * 0.1)
+      c.lineTo(cos * 0.3, sin * 0.3)
+      c.moveTo(cos * 0.16 - sin * 0.1, sin * 0.16 + cos * 0.1)
+      c.lineTo(cos * 0.16 + sin * 0.1, sin * 0.16 - cos * 0.1)
+      c.moveTo(cos * 0.23 - sin * 0.05, sin * 0.23 + cos * 0.05)
+      c.lineTo(cos * 0.23 + sin * 0.05, sin * 0.23 - cos * 0.05)
+    }
+    c.stroke
+  }
+}
+
+namespace DrawWallAvoider {
+  const INSTANCE = new
+}

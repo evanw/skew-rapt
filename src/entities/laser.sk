@@ -1,0 +1,51 @@
+class Laser : FreefallEnemy {
+  var bouncesLeft = BOUNCES
+
+  def new(center Vector, direction double) {
+    super(.LASER, center, RADIUS, 1)
+    velocity = Vector.fromAngle(direction) * SPEED
+  }
+
+  over move(seconds double) Vector {
+    return velocity * seconds
+  }
+
+  over reactToWorld(contact Contact) {
+    if bouncesLeft <= 0 {
+      setDead(true)
+
+      var position = getCenter
+      for i in 0..20 {
+        var angle = randInRange(0, TWOPI)
+        var direction = Vector.fromAngle(angle) * randInRange(0.5, 5)
+        Particle.line
+          .position(position)
+          .velocity(direction)
+          .angle(angle)
+          .radius(0.1)
+          .bounces(1)
+          .elasticity(1)
+          .decay(0.01)
+          .gravity(0)
+          .color(1, 1, 1, 1)
+      }
+    } else {
+      bouncesLeft--
+    }
+  }
+
+  over draw(c Context) {
+    var heading = velocity.unit * RADIUS
+    var segment = Segment.new(getCenter - heading, getCenter + heading)
+    c.setStrokeThickness(0.07)
+    c.setStrokeColor(.WHITE)
+    segment.draw(c)
+    c.setStrokeThickness(0.02)
+  }
+}
+
+namespace Laser {
+  const RADIUS = 0.15
+  const SPEED = 5
+  const BOUNCES = 0
+}

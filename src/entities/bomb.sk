@@ -1,0 +1,43 @@
+class Bomb : FreefallEnemy {
+  def new(center Vector, velocity Vector) {
+    super(.BOMB, center, RADIUS, 0)
+    self.velocity = velocity
+  }
+
+  over onDeath {
+    explode(getShape.getCenter)
+  }
+}
+
+namespace Bomb {
+  const RADIUS = 0.15
+
+  # bomb particle effects
+  def explode(position Vector) {
+    # fire
+    for i in 0..50 {
+      var direction = Vector.fromAngle(randInRange(0, TWOPI)) * randInRange(0.5, 7)
+      Particle.triangle
+        .position(position)
+        .velocity(direction)
+        .randomRadius(0.02, 0.15)
+        .randomBounces(0, 4)
+        .randomElasticity(0.05, 0.9)
+        .randomDecay(0.00001, 0.0001)
+        .randomExpand(1.0, 1.2)
+        .color(1, 0.5, 0, 1)
+        .mixColor(1, 1, 0, 1)
+    }
+
+    # white center
+    # collide should be false on this
+    Particle.circle
+      .position(position)
+      .radius(0.1)
+      .bounces(0)
+      .gravity(0)
+      .decay(0.000001)
+      .expand(10)
+      .color(1, 1, 1, 5)
+  }
+}

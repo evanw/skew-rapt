@@ -1,0 +1,102 @@
+class WallCrawler : WalkingEnemy {
+  var firstTick = true
+  var clockwise = false
+  var bodySprite = Sprite.new
+
+  def new(center Vector, direction double) {
+    super(.CRAWLER, center, RADIUS, 0)
+    velocity = Vector.fromAngle(direction)
+    bodySprite.drawCallback = DrawWallCrawler.INSTANCE
+  }
+
+  # Rotates about the closest point in the world
+  over move(seconds double) Vector {
+    var ref_shapePoint = Box<Vector>.new(null)
+    var ref_worldPoint = Box<Vector>.new(null)
+    var closestPointDist = CollisionDetector.closestToEntityWorld(self, 2, ref_shapePoint, ref_worldPoint)
+
+    if closestPointDist < Math.INFINITY {
+      var delta = getCenter - ref_worldPoint.value
+
+      # Make sure it doesn't get too far away or get stuck in corners
+      var flip = delta.flip
+
+      if firstTick {
+        if velocity.dot(flip) < 0 { clockwise = true }
+        else { clockwise = false }
+        firstTick = false
+      }
+
+      if delta.lengthSquared > RADIUS * RADIUS * 1.1 {
+        # Pull the crawler towards the wall
+        if clockwise { velocity = -flip - delta * PULL_FACTOR }
+        else { velocity = flip - delta * PULL_FACTOR }
+      } else {
+        # Push the crawler away from the wall
+        if clockwise { velocity = -flip + delta * PUSH_FACTOR }
+        else { velocity = flip + delta * PUSH_FACTOR }
+      }
+      velocity.normalize
+    }
+
+    return velocity * (SPEED * seconds)
+  }
+
+  over afterTick(seconds double) {
+    var deltaAngle = SPEED / RADIUS * seconds
+    bodySprite.offsetBeforeRotation = getCenter
+    if clockwise { bodySprite.angle += deltaAngle }
+    else { bodySprite.angle -= deltaAngle }
+  }
+
+  over draw(c Context) {
+    bodySprite.draw(c)
+  }
+}
+
+namespace WallCrawler {
+  const SPEED = 1
+  const RADIUS = 0.25
+  const PULL_FACTOR = 0.9
+  const PUSH_FACTOR = 0.11
+}
+
+class DrawWallCrawler :: DrawCallback {
+  def draw(c Context) {
+    const space = 0.15
+    c.setFillColor(.BLACK)
+    c.setStrokeColor(.BLACK)
+    c.beginPath
+    c.arc(0, 0, 0.25, Math.PI * 0.25 + space, Math.PI * 0.75 - space, false)
+    c.stroke
+    c.beginPath
+    c.arc(0, 0, 0.25, Math.PI * 0.75 + space, Math.PI * 1.25 - space, false)
+    c.stroke
+    c.beginPath
+    c.arc(0, 0, 0.25, Math.PI * 1.25 + space, Math.PI * 1.75 - space, false)
+    c.stroke
+    c.beginPath
+    c.arc(0, 0, 0.25, Math.PI * 1.75 + space, Math.PI * 2.25 - space, false)
+    c.stroke
+    c.beginPath
+    c.arc(0, 0, 0.15, 0, TWOPI, false)
+    c.stroke
+    c.beginPath
+    c.moveTo(0.15, 0)
+    c.lineTo(0.25, 0)
+    c.moveTo(0, 0.15)
+    c.lineTo(0, 0.25)
+    c.moveTo(-0.15, 0)
+    c.lineTo(-0.25, 0)
+    c.moveTo(0, -0.15)
+    c.lineTo(0, -0.25)
+    c.stroke
+    c.beginPath
+    c.arc(0, 0, 0.05, 0, TWOPI, false)
+    c.fill
+  }
+}
+
+namespace DrawWallCrawler {
+  const INSTANCE = new
+}

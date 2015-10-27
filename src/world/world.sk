@@ -1,0 +1,157 @@
+class World {
+  var cells List<Cell> = []
+  var width int
+  var height int
+  var safety Vector
+  var spawnPoint Vector
+  var goal Vector
+
+  def new(w int, h int, spawnPoint Vector, goal Vector) {
+    width = w
+    height = h
+    safety = spawnPoint
+    self.spawnPoint = spawnPoint
+    self.goal = goal
+    for y in 0..h {
+      for x in 0..w {
+        cells.append(Cell.new(x, y, .SOLID))
+      }
+    }
+
+    var half = Vector.new(0.5, 0.5)
+    spawnPoint += half
+    goal += half
+  }
+
+  def fillOversetRect(c Context, x double, y double, w double, h double) {
+    c.fillRect(x, y, w, h)
+    c.strokeRect(x, y, w, h)
+  }
+
+  def drawBorder(c Context, xmin double, ymin double, xmax double, ymax double) {
+    const padding = 100
+    if xmin < 0 { fillOversetRect(c, -padding, 0, padding, height) }
+    if ymin < 0 { fillOversetRect(c, -padding, -padding, width + 2 * padding, padding) }
+    if xmax > width { fillOversetRect(c, width, 0, padding, height) }
+    if ymax > height { fillOversetRect(c, -padding, height, width + 2 * padding, padding) }
+  }
+
+  def draw(c Context, xmin double, ymin double, xmax double, ymax double) {
+    c.setFillColor(.DARK_GRAY)
+    c.setStrokeColor(.DARK_GRAY)
+    drawBorder(c, xmin, ymin, xmax, ymax)
+
+    var ixmin = Math.max(0, Math.floor(xmin)) as int
+    var iymin = Math.max(0, Math.floor(ymin)) as int
+    var ixmax = Math.min(width, Math.ceil(xmax)) as int
+    var iymax = Math.min(height, Math.ceil(ymax)) as int
+
+    for y in iymin..iymax {
+      for x in ixmin..ixmax {
+        cells[x + y * width].draw(c)
+      }
+    }
+
+    c.setStrokeColor(.BLACK)
+
+    for y in iymin..iymax {
+      for x in ixmin..ixmax {
+        cells[x + y * width].drawEdges(c)
+      }
+    }
+  }
+
+  # cells outside the world return null
+  def getCell(x int, y int) Cell {
+    return x >= 0 && y >= 0 && x < width && y < height ? cells[x + y * width] : null
+  }
+
+  # cells outside the world return solid
+  def getCellType(x int, y int) CellType {
+    return x >= 0 && y >= 0 && x < width && y < height ? cells[x + y * width].type : .SOLID
+  }
+
+  def setCell(x int, y int, type CellType) {
+    assert(x >= 0 && y >= 0 && x < width && y < height)
+    cells[x + y * width] = Cell.new(x, y, type)
+  }
+
+  def createAllEdges {
+    for y in 0..height {
+      for x in 0..width {
+        cells[x + y * width].edges = createEdges(x, y)
+      }
+    }
+  }
+
+  def createEdges(x int, y int) List<Edge> {
+    var edges List<Edge> = []
+
+    var cellType = getCellType(x, y)
+    var cellTypeXneg = getCellType(x - 1, y)
+    var cellTypeYneg = getCellType(x, y - 1)
+    var cellTypeXpos = getCellType(x + 1, y)
+    var cellTypeYpos = getCellType(x, y + 1)
+
+    var lowerLeft = Vector.new(x, y)
+    var lowerRight = Vector.new(x + 1, y)
+    var upperLeft = Vector.new(x, y + 1)
+    var upperRight = Vector.new(x + 1, y + 1)
+
+    # add horizontal and vertical edges
+    if cellType.isEmptyXneg && cellTypeXneg.isSolidXpos { edges.append(Edge.new(lowerLeft, upperLeft, .NEUTRAL)) }
+    if cellType.isEmptyYneg && cellTypeYneg.isSolidYpos { edges.append(Edge.new(lowerRight, lowerLeft, .NEUTRAL)) }
+    if cellType.isEmptyXpos && cellTypeXpos.isSolidXneg { edges.append(Edge.new(upperRight, lowerRight, .NEUTRAL)) }
+    if cellType.isEmptyYpos && cellTypeYpos.isSolidYneg { edges.append(Edge.new(upperLeft, upperRight, .NEUTRAL)) }
+
+    # add diagonal edges
+    if cellType == .FLOOR_DIAG_RIGHT { edges.append(Edge.new(upperRight, lowerLeft, .NEUTRAL)) }
+    else if cellType == .CEIL_DIAG_LEFT { edges.append(Edge.new(lowerLeft, upperRight, .NEUTRAL)) }
+    else if cellType == .FLOOR_DIAG_LEFT { edges.append(Edge.new(lowerRight, upperLeft, .NEUTRAL)) }
+    else if cellType == .CEIL_DIAG_RIGHT { edges.append(Edge.new(upperLeft, lowerRight, .NEUTRAL)) }
+
+    return edges
+  }
+
+  def getEdgesInAabb(aabb AABB, color EdgeColor) List<Edge> {
+    var xmin = Math.max(0, Math.floor(aabb.getLeft)) as int
+    var ymin = Math.max(0, Math.floor(aabb.getBottom)) as int
+    var xmax = Math.min(width, Math.ceil(aabb.getRight)) as int
+    var ymax = Math.min(height, Math.ceil(aabb.getTop)) as int
+    var edges List<Edge> = []
+
+    for x in xmin..xmax {
+      for y in ymin..ymax {
+        for edge in cells[x + y * width].getBlockingEdges(color) {
+          edges.append(edge)
+        }
+      }
+    }
+
+    return edges
+  }
+
+  def getCellsInAabb(aabb AABB) List<Cell> {
+    var xmin = Math.max(0, Math.floor(aabb.getLeft)) as int
+    var ymin = Math.max(0, Math.floor(aabb.getBottom)) as int
+    var xmax = Math.min(width, Math.ceil(aabb.getRight)) as int
+    var ymax = Math.min(height, Math.ceil(aabb.getTop)) as int
+    var result List<Cell> = []
+
+    for x in xmin..xmax {
+      for y in ymin..ymax {
+        result.append(cells[x + y * width])
+      }
+    }
+
+    return result
+  }
+
+  def getHugeAabb AABB {
+    return AABB.new(Vector.new(-MARGIN, -MARGIN), Vector.new(width + MARGIN, height + MARGIN))
+  }
+}
+
+namespace World {
+  const MARGIN = 60
+}

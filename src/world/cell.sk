@@ -1,0 +1,154 @@
+enum CellType {
+  EMPTY
+  SOLID
+  FLOOR_DIAG_LEFT
+  FLOOR_DIAG_RIGHT
+  CEIL_DIAG_LEFT
+  CEIL_DIAG_RIGHT
+
+  def isCeilingOccupied bool {
+    return self == SOLID || self == CEIL_DIAG_LEFT || self == CEIL_DIAG_RIGHT
+  }
+
+  def isFloorOccupied bool {
+    return self == SOLID || self == FLOOR_DIAG_LEFT || self == FLOOR_DIAG_RIGHT
+  }
+
+  def isLeftWallOccupied bool {
+    return self == SOLID || self == FLOOR_DIAG_LEFT || self == CEIL_DIAG_LEFT
+  }
+
+  def isRightWallOccupied bool {
+    return self == SOLID || self == FLOOR_DIAG_RIGHT || self == CEIL_DIAG_RIGHT
+  }
+
+  # This diagonal: /
+  def isPosDiagOccupied bool {
+    return self == SOLID || self == FLOOR_DIAG_RIGHT || self == CEIL_DIAG_LEFT
+  }
+
+  # This diagonal: \
+  def isNegDiagOccupied bool {
+    return self == SOLID || self == FLOOR_DIAG_LEFT || self == CEIL_DIAG_RIGHT
+  }
+
+  # is self side of the cell empty?
+  def isEmptyXneg bool { return self == EMPTY || self == FLOOR_DIAG_RIGHT || self == CEIL_DIAG_RIGHT }
+  def isEmptyYneg bool { return self == EMPTY || self == CEIL_DIAG_LEFT || self == CEIL_DIAG_RIGHT }
+  def isEmptyXpos bool { return self == EMPTY || self == FLOOR_DIAG_LEFT || self == CEIL_DIAG_LEFT }
+  def isEmptyYpos bool { return self == EMPTY || self == FLOOR_DIAG_LEFT || self == FLOOR_DIAG_RIGHT }
+
+  # is self side of the cell solid?
+  def isSolidXneg bool { return self == SOLID || self == FLOOR_DIAG_LEFT || self == CEIL_DIAG_LEFT }
+  def isSolidYneg bool { return self == SOLID || self == FLOOR_DIAG_LEFT || self == FLOOR_DIAG_RIGHT }
+  def isSolidXpos bool { return self == SOLID || self == FLOOR_DIAG_RIGHT || self == CEIL_DIAG_RIGHT }
+  def isSolidYpos bool { return self == SOLID || self == CEIL_DIAG_LEFT || self == CEIL_DIAG_RIGHT }
+}
+
+class Cell {
+  var x int
+  var y int
+  var type CellType
+  var edges List<Edge> = []
+
+  def bottomLeft Vector { return Vector.new(x, y) }
+  def bottomRight Vector { return Vector.new(x + 1, y) }
+  def topLeft Vector { return Vector.new(x, y + 1) }
+  def topRight Vector { return Vector.new(x + 1, y + 1) }
+
+  def addEdge(edge Edge) {
+    edges.append(edge)
+  }
+
+  def removeEdge(edge Edge) {
+    edges.removeAt(getEdge(edge))
+  }
+
+  # Returns all edges that block self color
+  def getBlockingEdges(color EdgeColor) List<Edge> {
+    var blockingEdges List<Edge> = []
+    for edge in edges {
+      if edge.blocksColor(color) {
+        blockingEdges.append(edge)
+      }
+    }
+    return blockingEdges
+  }
+
+  def getEdge(edge Edge) int {
+    for i in 0..edges.count {
+      var thisEdge = edges[i]
+      if (thisEdge.getStart - edge.getStart).lengthSquared < 0.001 &&
+          (thisEdge.getEnd - edge.getEnd).lengthSquared < 0.001 {
+        return i
+      }
+    }
+    return -1
+  }
+
+  # Returns a polygon that represents self cell
+  def getShape Polygon {
+    var vxy = Vector.new(x, y)
+    var v00 = Vector.new(0, 0)
+    var v01 = Vector.new(0, 1)
+    var v10 = Vector.new(1, 0)
+    var v11 = Vector.new(1, 1)
+
+    switch type {
+      case .SOLID { return Polygon.new(vxy, [v00, v10, v11, v01]) }
+      case .FLOOR_DIAG_LEFT { return Polygon.new(vxy, [v00, v10, v01]) }
+      case .FLOOR_DIAG_RIGHT { return Polygon.new(vxy, [v00, v10, v11]) }
+      case .CEIL_DIAG_LEFT { return Polygon.new(vxy, [v00, v11, v01]) }
+      case .CEIL_DIAG_RIGHT { return Polygon.new(vxy, [v01, v10, v11]) }
+    }
+
+    return null
+  }
+
+  def draw(c Context) {
+    c.beginPath
+
+    switch type {
+      case .SOLID {
+        c.moveTo(x, y)
+        c.lineTo(x, y + 1)
+        c.lineTo(x + 1, y + 1)
+        c.lineTo(x + 1, y)
+      }
+
+      case .FLOOR_DIAG_LEFT {
+        c.moveTo(x, y)
+        c.lineTo(x + 1, y)
+        c.lineTo(x, y + 1)
+      }
+
+      case .FLOOR_DIAG_RIGHT {
+        c.moveTo(x, y)
+        c.lineTo(x + 1, y + 1)
+        c.lineTo(x + 1, y)
+      }
+
+      case .CEIL_DIAG_LEFT {
+        c.moveTo(x, y)
+        c.lineTo(x, y + 1)
+        c.lineTo(x + 1, y + 1)
+      }
+
+      case .CEIL_DIAG_RIGHT {
+        c.moveTo(x + 1, y)
+        c.lineTo(x, y + 1)
+        c.lineTo(x + 1, y + 1)
+      }
+    }
+
+    c.closePath
+    c.fill
+    c.stroke
+  }
+
+  def drawEdges(c Context) {
+    for edge in edges {
+      edge.draw(c)
+    }
+  }
+}

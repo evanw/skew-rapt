@@ -1,0 +1,82 @@
+class AABB :: Shape {
+  var lowerLeft Vector
+  var size Vector
+
+  def new(a Vector, b Vector) {
+    lowerLeft = a.minComponents(b)
+    size = a.maxComponents(b) - lowerLeft
+  }
+
+  def getTop double { return lowerLeft.y + size.y }
+  def getLeft double { return lowerLeft.x }
+  def getRight double { return lowerLeft.x + size.x }
+  def getBottom double { return lowerLeft.y }
+  def getWidth double { return size.x }
+  def getHeight double { return size.y }
+
+  def copy Shape {
+    return new(lowerLeft, lowerLeft + size)
+  }
+
+  def getPolygon Polygon {
+    var center = getCenter
+    var halfSize = size / 2
+    return Polygon.new(center, [
+      Vector.new(+halfSize.x, +halfSize.y),
+      Vector.new(-halfSize.x, +halfSize.y),
+      Vector.new(-halfSize.x, -halfSize.y),
+      Vector.new(+halfSize.x, -halfSize.y),
+    ])
+  }
+
+  def getType ShapeType {
+    return .AABB
+  }
+
+  def getAabb AABB {
+    return self
+  }
+
+  def moveBy(delta Vector) {
+    lowerLeft = lowerLeft + delta
+  }
+
+  def moveTo(destination Vector) {
+    lowerLeft = destination - size / 2
+  }
+
+  def getCenter Vector {
+    return lowerLeft + size / 2
+  }
+
+  def expand(margin double) AABB {
+    var marginVector = Vector.new(margin, margin)
+    return new(lowerLeft - marginVector, lowerLeft + size + marginVector)
+  }
+
+  def union(aabb AABB) AABB {
+    return new(lowerLeft.minComponents(aabb.lowerLeft), (lowerLeft + size).maxComponents(aabb.lowerLeft + aabb.size))
+  }
+
+  def include(point Vector) AABB {
+    return new(lowerLeft.minComponents(point), (lowerLeft + size).maxComponents(point))
+  }
+
+  def offsetBy(offset Vector) AABB {
+    return new(lowerLeft + offset, lowerLeft + size + offset)
+  }
+
+  def draw(c Context) {
+    c.setStrokeColor(.BLACK)
+    c.strokeRect(lowerLeft.x, lowerLeft.y, size.x, size.y)
+  }
+}
+
+namespace AABB {
+  def makeAABB(center Vector, width double, height double) AABB {
+    var halfSize = Vector.new(width * 0.5, height * 0.5)
+    var lowerLeft = center - halfSize
+    var upperRight = center + halfSize
+    return new(lowerLeft, upperRight)
+  }
+}

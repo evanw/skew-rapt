@@ -1,0 +1,51 @@
+class RiotBullet : FreefallEnemy {
+  def new(center Vector, direction double) {
+    super(.RIOT_BULLET, center, RADIUS, 0)
+    velocity = Vector.fromAngle(direction) * SPEED
+  }
+
+  over reactToPlayer(player Player) {
+    # the delta-velocity applied to the player
+    if !isDead {
+      player.addToVelocity(velocity * 0.75)
+    }
+
+    setDead(true)
+  }
+
+  over onDeath {
+    var position = getCenter
+
+    # smoke
+    for i in 0..5 {
+      var direction = velocity + Vector.fromAngle(randInRange(0, TWOPI)) * randInRange(0.1, 1)
+      Particle.circle
+        .position(position)
+        .velocity(direction)
+        .randomRadius(0.01, 0.1)
+        .randomBounces(0, 4)
+        .randomElasticity(0.05, 0.9)
+        .randomDecay(0.0005, 0.005)
+        .randomExpand(1.0, 1.2)
+        .color(0.9, 0.9, 0, 1)
+        .mixColor(1, 1, 0, 1)
+    }
+
+    super
+  }
+
+  over draw(c Context) {
+    var pos = getCenter
+    c.setStrokeColor(.BLACK)
+    c.setFillColor(.YELLOW)
+    c.beginPath
+    c.arc(pos.x, pos.y, RADIUS, 0, TWOPI, false)
+    c.fill
+    c.stroke
+  }
+}
+
+namespace RiotBullet {
+  const RADIUS = 0.1
+  const SPEED = 7.0
+}

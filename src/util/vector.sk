@@ -1,0 +1,71 @@
+class Vector {
+  var x double
+  var y double
+
+  def - Vector { return Vector.new(-x, -y) }
+  def +(v Vector) Vector { return Vector.new(x + v.x, y + v.y) }
+  def -(v Vector) Vector { return Vector.new(x - v.x, y - v.y) }
+  def *(f double) Vector { return Vector.new(x * f, y * f) }
+  def /(f double) Vector { return Vector.new(x / f, y / f) }
+
+  def +=(v Vector) {
+    x += v.x
+    y += v.y
+  }
+  def -=(v Vector) {
+    x -= v.x
+    y -= v.y
+  }
+  def *=(f double) {
+    x *= f
+    y *= f
+  }
+  def /=(f double) {
+    x /= f
+    y /= f
+  }
+
+  def flip Vector { return Vector.new(y, -x) } # Turns 90 degrees right
+  def eq(v Vector) bool { return Math.abs(x - v.x) + Math.abs(y - v.y) < 0.001 }
+  def inplaceFlip {
+    var t = x
+    x = y
+    y = -t
+  }
+  def inplaceNeg {
+    x = -x
+    y = -y
+  }
+  def copyFrom(v Vector) {
+    x = v.x
+    y = v.y
+  }
+  def clone Vector { return Vector.new(x, y) }
+  def dot(v Vector) double { return x * v.x + y * v.y }
+  def lengthSquared double { return dot(self) }
+  def length double { return Math.sqrt(lengthSquared) }
+  def unit Vector { return self / length }
+  def normalize { self /= length }
+  def atan2 double { return Math.atan2(y, x) }
+  def angleBetween(v Vector) double { return atan2 - v.atan2 }
+  def rotate(theta double) Vector {
+    var s = Math.sin(theta)
+    var c = Math.cos(theta)
+    return Vector.new(x * c - y * s, x * s + y * c)
+  }
+  def minComponents(v Vector) Vector { return Vector.new(Math.min(x, v.x), Math.min(y, v.y)) }
+  def maxComponents(v Vector) Vector { return Vector.new(Math.max(x, v.x), Math.max(y, v.y)) }
+  def projectOntoAUnitVector(v Vector) Vector { return v * dot(v) }
+  def toString string { return "(" + x.toString + ", " + y.toString + ")" }
+
+  def adjustTowardsTarget(target Vector, maxDistance double) {
+    var delta = target - self
+    var squared = delta.lengthSquared
+    copyFrom(squared < maxDistance * maxDistance ? target : self + delta * (maxDistance / Math.sqrt(squared)))
+  }
+}
+
+namespace Vector {
+  def fromAngle(theta double) Vector { return Vector.new(Math.cos(theta), Math.sin(theta)) }
+  def lerp(a Vector, b Vector, t double) Vector { return a + (b - a) * t }
+}

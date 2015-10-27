@@ -1,0 +1,22 @@
+const TWOPI = Math.PI * 2
+
+def lerp(a double, b double, percent double) double {
+  return a + (b - a) * percent
+}
+
+def randInRange(a double, b double) double {
+  return lerp(a, b, Math.random)
+}
+
+def adjustAngleToTarget(currAngle double, targetAngle double, maxRotation double) double {
+  if targetAngle - currAngle > Math.PI { currAngle += TWOPI }
+  else if currAngle - targetAngle > Math.PI { currAngle -= TWOPI }
+
+  var deltaAngle = targetAngle - currAngle
+  if Math.abs(deltaAngle) > maxRotation {
+    deltaAngle = deltaAngle > 0 ? maxRotation : -maxRotation
+  }
+  currAngle += deltaAngle
+  currAngle -= Math.floor(currAngle / TWOPI) * TWOPI
+  return currAngle
+}

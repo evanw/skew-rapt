@@ -1,0 +1,135 @@
+class MultiGun : SpawningEnemy {
+  var redGun Vector
+  var blueGun Vector
+  var gunPositions List<Vector> = []
+  var gunFired = [false, false, false, false]
+
+  def new(center Vector) {
+    super(.MULTI_GUN, center, WIDTH, HEIGHT, 0, SHOOT_FREQ, 0)
+    redGun = center.clone
+    blueGun = center.clone
+    gunPositions.append(hitBox.lowerLeft)
+    gunPositions.append(Vector.new(hitBox.getRight, hitBox.getBottom))
+    gunPositions.append(Vector.new(hitBox.getLeft, hitBox.getTop))
+    gunPositions.append(hitBox.lowerLeft + Vector.new(hitBox.getWidth, hitBox.getHeight))
+  }
+
+  over canCollide bool {
+    return false
+  }
+
+  def vectorToIndex(v Vector) int {
+    var indexX = v.x < 0 ? 0 : 1
+    var indexY = v.y < 0 ? 0 : 2
+    return indexX + indexY
+  }
+
+  over spawn bool {
+    for i in 0..4 {
+      gunFired[i] = false
+    }
+
+    var fired = false
+    for i in 0..2 {
+      var target = gameState.getPlayer(i)
+      var index = vectorToIndex(target.getCenter - getCenter)
+      var relPosition = target.getCenter - gunPositions[index]
+
+      # Player must be alive and in range to be shot
+      if !target.isDead && !gunFired[index] && relPosition.lengthSquared < RANGE * RANGE && CollisionDetector.lineOfSightWorld(gunPositions[index], target.getCenter) == null {
+        gameState.addEnemyWithCenter(Laser.new(gunPositions[index], relPosition.atan2), gunPositions[index])
+        gunFired[index] = true
+        fired = true
+      }
+    }
+    return fired
+  }
+
+  over afterTick(seconds double) {
+    var position = getCenter
+    var redGunTarget = gunPositions[vectorToIndex(gameState.playerA.getCenter - position)]
+    var blueGunTarget = gunPositions[vectorToIndex(gameState.playerB.getCenter - position)]
+
+    var speed = 4 * seconds
+    redGun.adjustTowardsTarget(redGunTarget, speed)
+    blueGun.adjustTowardsTarget(blueGunTarget, speed)
+  }
+
+  over draw(c Context) {
+    # Draw the red and/or blue circles
+    if redGun.eq(blueGun) && !gameState.playerA.isDead && !gameState.playerB.isDead {
+      var angle = (redGun - getCenter).atan2
+      c.setFillColor(.RED)
+      c.beginPath
+      c.arc(redGun.x, redGun.y, 0.1, angle, angle + Math.PI, false)
+      c.fill
+      c.setFillColor(.BLUE)
+      c.beginPath
+      c.arc(blueGun.x, blueGun.y, 0.1, angle + Math.PI, angle + TWOPI, false)
+      c.fill
+    } else {
+      if !gameState.playerA.isDead {
+        c.setFillColor(.RED)
+        c.beginPath
+        c.arc(redGun.x, redGun.y, 0.1, 0, TWOPI, false)
+        c.fill
+      }
+      if !gameState.playerB.isDead {
+        c.setFillColor(.BLUE)
+        c.beginPath
+        c.arc(blueGun.x, blueGun.y, 0.1, 0, TWOPI, false)
+        c.fill
+      }
+    }
+
+    # Draw the body
+    c.setStrokeColor(.BLACK)
+    c.beginPath
+
+    # Bottom horizontal
+    c.moveTo(gunPositions[0].x, gunPositions[0].y + 0.1)
+    c.lineTo(gunPositions[1].x, gunPositions[1].y + 0.1)
+    c.moveTo(gunPositions[0].x, gunPositions[0].y - 0.1)
+    c.lineTo(gunPositions[1].x, gunPositions[1].y - 0.1)
+
+    # Top horizontal
+    c.moveTo(gunPositions[2].x, gunPositions[2].y - 0.1)
+    c.lineTo(gunPositions[3].x, gunPositions[3].y - 0.1)
+    c.moveTo(gunPositions[2].x, gunPositions[2].y + 0.1)
+    c.lineTo(gunPositions[3].x, gunPositions[3].y + 0.1)
+
+    # Left vertical
+    c.moveTo(gunPositions[0].x + 0.1, gunPositions[0].y)
+    c.lineTo(gunPositions[2].x + 0.1, gunPositions[2].y)
+    c.moveTo(gunPositions[0].x - 0.1, gunPositions[0].y)
+    c.lineTo(gunPositions[2].x - 0.1, gunPositions[2].y)
+
+    # Right vertical
+    c.moveTo(gunPositions[1].x - 0.1, gunPositions[1].y)
+    c.lineTo(gunPositions[3].x - 0.1, gunPositions[3].y)
+    c.moveTo(gunPositions[1].x + 0.1, gunPositions[1].y)
+    c.lineTo(gunPositions[3].x + 0.1, gunPositions[3].y)
+    c.stroke
+
+    # Draw the gun holders
+    c.beginPath
+    c.arc(gunPositions[0].x, gunPositions[0].y, 0.1, 0, TWOPI, false)
+    c.stroke
+    c.beginPath
+    c.arc(gunPositions[1].x, gunPositions[1].y, 0.1, 0, TWOPI, false)
+    c.stroke
+    c.beginPath
+    c.arc(gunPositions[2].x, gunPositions[2].y, 0.1, 0, TWOPI, false)
+    c.stroke
+    c.beginPath
+    c.arc(gunPositions[3].x, gunPositions[3].y, 0.1, 0, TWOPI, false)
+    c.stroke
+  }
+}
+
+namespace MultiGun {
+  const WIDTH = 0.5
+  const HEIGHT = 0.5
+  const SHOOT_FREQ = 1.25
+  const RANGE = 8.0
+}

@@ -1,0 +1,70 @@
+class BouncyRocket : Rocket {
+  var launcher BouncyRocketLauncher
+  var hitsUntilExplodes = HEALTH
+
+  def new(center Vector, target Player, heading double, launcher BouncyRocketLauncher) {
+    super(center, target, heading)
+    self.launcher = launcher
+    type = .BOUNCY_ROCKET
+    maxRotation = MAX_ROTATION_OVERRIDE
+    velocity = Vector.fromAngle(heading) * SPEED_OVERRIDE
+    sprites[Rocket.SPRITE_RED].drawCallback = DrawBouncyRocket.new(.RED, .BLUE)
+    sprites[Rocket.SPRITE_BLUE].drawCallback = DrawBouncyRocket.new(.BLUE, .RED)
+  }
+
+  over move(seconds double) Vector {
+    heading = velocity.atan2
+    calcHeading(seconds)
+    velocity = Vector.fromAngle(heading) * SPEED_OVERRIDE
+    return velocity * seconds
+  }
+
+  over reactToWorld(contact Contact) {
+    hitsUntilExplodes--
+
+    if hitsUntilExplodes <= 0 {
+      setDead(true)
+    } else {
+      target = gameState.getOtherPlayer(target)
+    }
+  }
+
+  over setDead(isDead bool) {
+    super(isDead)
+
+    if isDead && launcher != null {
+      launcher.rocketDestroyed
+    }
+  }
+}
+
+namespace BouncyRocket {
+  const SPEED_OVERRIDE = 4.0
+  const MAX_ROTATION_OVERRIDE = 3.0
+  const HEALTH = 2
+}
+
+class DrawBouncyRocket :: DrawCallback {
+  var colorA Color
+  var colorB Color
+
+  def draw(c Context) {
+    const size = 0.1
+    c.setStrokeColor(.BLACK)
+
+    c.setFillColor(colorA)
+    c.beginPath
+    c.moveTo(-Rocket.RADIUS, size)
+    c.arc(Rocket.RADIUS - size, 0, size, Math.PI / 2, -Math.PI / 2, true)
+    c.lineTo(-Rocket.RADIUS, -size)
+    c.fill
+    c.stroke
+
+    c.setFillColor(colorB)
+    c.beginPath
+    c.arc(-Rocket.RADIUS, 0, size, -Math.PI / 2, Math.PI / 2, false)
+    c.closePath
+    c.fill
+    c.stroke
+  }
+}

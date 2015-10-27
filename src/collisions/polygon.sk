@@ -1,0 +1,75 @@
+# For the polygon class, the segments and the bounding box are all relative to the center of the polygon.
+# That is, when the polygon moves, the center is the only thing that changes.  This is to prevent
+# floating-point arithmetic errors that would be caused by maintaining several sets of absolute coordinates.
+#
+# Segment i goes from vertex i to vertex ((i + 1) % vertices.size)
+#
+# When making a new polygon, please declare the vertices in counterclockwise order.  I'm not sure what will
+# happen if you don't do that.
+#
+class Polygon :: Shape {
+  var center Vector
+  var vertices List<Vector>
+  var segments List<Segment> = []
+  var boundingBox AABB
+
+  def new(center Vector, vertices List<Vector>) {
+    self.center = center
+    self.vertices = vertices
+    var n = vertices.count
+    for i in 0..n {
+      segments.append(Segment.new(vertices[i], vertices[(i + 1) % n]))
+    }
+    boundingBox = AABB.new(vertices[0], Vector.new(0, 0))
+    initializeBounds
+  }
+
+  def copy Shape {
+    return Polygon.new(center, vertices)
+  }
+
+  def getType ShapeType {
+    return .POLYGON
+  }
+
+  def getCenter Vector {
+    return center
+  }
+
+  def getAabb AABB {
+    return boundingBox.offsetBy(center)
+  }
+
+  def moveBy(delta Vector) {
+    center = center + delta
+  }
+
+  def moveTo(destination Vector) {
+    center = destination
+  }
+
+  def getVertex(i int) Vector {
+    return vertices[i] + center
+  }
+
+  def getSegment(i int) Segment {
+    return segments[i].offsetBy(center)
+  }
+
+  # Expand the aabb and the bounding circle to contain all vertices
+  def initializeBounds {
+    for vertex in vertices {
+      boundingBox = boundingBox.include(vertex)
+    }
+  }
+
+  def draw(c Context) {
+    c.setStrokeColor(.BLACK)
+    c.beginPath
+    for vertex in vertices {
+      c.lineTo(vertex.x + center.x, vertex.y + center.y)
+    }
+    c.closePath
+    c.stroke
+  }
+}

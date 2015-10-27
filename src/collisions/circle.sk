@@ -1,0 +1,40 @@
+class Circle :: Shape {
+  var center Vector
+  var radius double
+
+  def copy Shape {
+    return Circle.new(center, radius)
+  }
+
+  def getType ShapeType {
+    return .CIRCLE
+  }
+
+  def getAabb AABB {
+    var radiusVector = Vector.new(radius, radius)
+    return AABB.new(center - radiusVector, center + radiusVector)
+  }
+
+  def getCenter Vector {
+    return center
+  }
+
+  def moveBy(delta Vector) {
+    center = center + delta
+  }
+
+  def moveTo(destination Vector) {
+    center = destination
+  }
+
+  def offsetBy(offset Vector) Circle {
+    return new(center + offset, radius)
+  }
+
+  def draw(c Context) {
+    c.setStrokeColor(.BLACK)
+    c.beginPath
+    c.arc(center.x, center.y, radius, 0, TWOPI, false)
+    c.stroke
+  }
+}

@@ -1,0 +1,46 @@
+class SpawningEnemy : Enemy {
+  var hitBox AABB
+  var spawnFrequency double
+  var timeUntilNextSpawn double
+
+  def new(type EnemyType, center Vector, width double, height double, elasticity double, frequency double, startingTime double) {
+    super(type, elasticity)
+    hitBox = AABB.makeAABB(center, width, height)
+    spawnFrequency = frequency
+    timeUntilNextSpawn = startingTime
+  }
+
+  over getShape Shape {
+    return hitBox
+  }
+
+  # return a number between 0 and 1 indicating how ready we are for
+  # the next spawn (0 is just spawned and 1 is about to spawn)
+  def getReloadPercentage double {
+    return 1 - timeUntilNextSpawn / spawnFrequency
+  }
+
+  # Special tick to include a step to spawn enemies
+  over tick(seconds double) {
+    timeUntilNextSpawn -= seconds
+
+    # If an enemy is spawned, increase the time by the spawn frequency
+    if timeUntilNextSpawn <= 0 {
+      if spawn {
+        timeUntilNextSpawn += spawnFrequency
+      } else {
+        timeUntilNextSpawn = 0
+      }
+    }
+
+    super(seconds)
+  }
+
+  # Don't kill the player by default
+  over reactToPlayer(player Player) {
+  }
+
+  # Subclasses of this should over Spawn to spawn the right type of enemy
+  # Returns true iff an enemy is actually spawned
+  def spawn bool
+}

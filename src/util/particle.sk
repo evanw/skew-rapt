@@ -1,0 +1,283 @@
+enum ParticleType {
+  CUSTOM
+  CIRCLE
+  TRIANGLE
+  LINE
+}
+
+# Particles are statically allocated in a big array so that creating a new
+# particle doesn't need to allocate any memory (for speed reasons). To create
+# one, call a factory method, which will return one of the elements in
+# that array with all values reset to defaults. To change a property use the
+# function with the name of that property. Some property functions can take
+# two values, which will pick a random number between those numbers.
+#
+# Examples:
+#
+#   Particle.triangle.position(center).color(0.9, 0, 0, 0.5).mixColor(1, 0, 0, 1).gravity(1)
+#   Particle.circle.position(center).velocity(velocity).color(0, 0, 0, 1).randomGravity(0.4, 0.6)
+#
+class Particle {
+  # must use 'm_' here because many setting functions have the same name as their property
+  var m_type ParticleType = .CUSTOM
+  var m_bounces = 0
+  var m_red = 0.0
+  var m_green = 0.0
+  var m_blue = 0.0
+  var m_alpha = 0.0
+  var m_radius = 0.0
+  var m_gravity = 0.0
+  var m_elasticity = 0.0
+  var m_decay = 1.0
+  var m_expand = 1.0
+  var m_position = Vector.new(0, 0)
+  var m_velocity = Vector.new(0, 0)
+  var m_angle = 0.0
+  var m_angularVelocity = 0.0
+  var m_draw DrawCallback = null
+
+  def init(type ParticleType) {
+    m_bounces = 0
+    m_type = type
+    m_red = 0
+    m_green = 0
+    m_blue = 0
+    m_alpha = 0
+    m_radius = 0
+    m_gravity = 0
+    m_elasticity = 0
+    m_decay = 1
+    m_expand = 1
+    m_position = Vector.new(0, 0)
+    m_velocity = Vector.new(0, 0)
+    m_angle = 0
+    m_angularVelocity = 0
+    m_draw = null
+  }
+
+  def tick(seconds double) bool {
+    if m_bounces < 0 {
+      return false
+    }
+    m_alpha *= Math.pow(m_decay, seconds)
+    m_radius *= Math.pow(m_expand, seconds)
+    m_velocity.y -= m_gravity * seconds
+    m_position = m_position + m_velocity * seconds
+    m_angle += m_angularVelocity * seconds
+    if m_alpha < 0.05 {
+      m_bounces = -1
+    }
+    return m_bounces >= 0
+  }
+
+  def createColor Color {
+    return Color.new(
+      (255 * m_red) as int,
+      (255 * m_green) as int,
+      (255 * m_blue) as int,
+      (255 * m_alpha) as int)
+  }
+
+  def draw(c Context) {
+    switch m_type {
+      case .CIRCLE {
+        c.setFillColor(createColor)
+        c.beginPath
+        c.arc(m_position.x, m_position.y, m_radius, 0, TWOPI, false)
+        c.fill
+      }
+
+      case .TRIANGLE {
+        var delta = m_velocity.flip * 0.01
+        var v1 = m_position + m_velocity * 0.04
+        var v2 = m_position - delta
+        var v3 = m_position + delta
+        c.setFillColor(createColor)
+        c.beginPath
+        c.moveTo(v1.x, v1.y)
+        c.lineTo(v2.x, v2.y)
+        c.lineTo(v3.x, v3.y)
+        c.closePath
+        c.fill
+      }
+
+      case .LINE {
+        var dx = Math.cos(m_angle) * m_radius
+        var dy = Math.sin(m_angle) * m_radius
+        c.setStrokeColor(createColor)
+        c.beginPath
+        c.moveTo(m_position.x - dx, m_position.y - dy)
+        c.lineTo(m_position.x + dx, m_position.y + dy)
+        c.stroke
+      }
+
+      case .CUSTOM {
+        c.setFillColor(createColor)
+        c.save
+        c.translate(m_position.x, m_position.y)
+        c.rotate(m_angle)
+        m_draw.draw(c)
+        c.restore
+      }
+    }
+  }
+
+  # all of these functions support chaining to fix constructor with 200 arguments
+  def bounces(value int) Particle {
+    m_bounces = value
+    return self
+  }
+  def color(r double, g double, b double, a double) Particle {
+    m_red = r
+    m_green = g
+    m_blue = b
+    m_alpha = a
+    return self
+  }
+  def mixColor(r double, g double, b double, a double) Particle {
+    var percent = Math.random
+    m_red = lerp(m_red, r, percent)
+    m_green = lerp(m_green, g, percent)
+    m_blue = lerp(m_blue, b, percent)
+    m_alpha = lerp(m_alpha, a, percent)
+    return self
+  }
+  def radius(value double) Particle {
+    m_radius = value
+    return self
+  }
+  def gravity(value double) Particle {
+    m_gravity = value
+    return self
+  }
+  def elasticity(value double) Particle {
+    m_elasticity = value
+    return self
+  }
+  def decay(value double) Particle {
+    m_decay = value
+    return self
+  }
+  def expand(value double) Particle {
+    m_expand = value
+    return self
+  }
+  def angle(value double) Particle {
+    m_angle = value
+    return self
+  }
+  def angularVelocity(value double) Particle {
+    m_angularVelocity = value
+    return self
+  }
+  def position(value Vector) Particle {
+    m_position = value
+    return self
+  }
+  def velocity(value Vector) Particle {
+    m_velocity = value
+    return self
+  }
+
+  def randomBounces(min double, max double) Particle {
+    m_bounces = Math.round(randInRange(min, max)) as int
+    return self
+  }
+  def randomRadius(min double, max double) Particle {
+    m_radius = randInRange(min, max)
+    return self
+  }
+  def randomGravity(min double, max double) Particle {
+    m_gravity = randInRange(min, max)
+    return self
+  }
+  def randomElasticity(min double, max double) Particle {
+    m_elasticity = randInRange(min, max)
+    return self
+  }
+  def randomDecay(min double, max double) Particle {
+    m_decay = randInRange(min, max)
+    return self
+  }
+  def randomExpand(min double, max double) Particle {
+    m_expand = randInRange(min, max)
+    return self
+  }
+  def randomAngle(min double, max double) Particle {
+    m_angle = randInRange(min, max)
+    return self
+  }
+  def randomAngularVelocity(min double, max double) Particle {
+    m_angularVelocity = randInRange(min, max)
+    return self
+  }
+}
+
+namespace Particle {
+  const MAX_COUNT = 3000
+  var particles = createParticles
+  var count = 0
+
+  def circle Particle { return allocate(.CIRCLE) }
+  def triangle Particle { return allocate(.TRIANGLE) }
+  def line Particle { return allocate(.LINE) }
+
+  def custom(draw DrawCallback) Particle {
+    var particle = allocate(.CUSTOM)
+    particle.m_draw = draw
+    return particle
+  }
+
+  def allocate(type ParticleType) Particle {
+    var particle = count < MAX_COUNT ? particles[count] : particles[MAX_COUNT - 1]
+    if count < MAX_COUNT {
+      count++
+    }
+    particle.init(type)
+    return particle
+  }
+
+  def createParticles List<Particle> {
+    var result List<Particle> = []
+    for i in 0..MAX_COUNT {
+      result.append(new)
+    }
+    return result
+  }
+
+  def reset {
+    count = 0
+  }
+
+  def tickAll(seconds double) {
+    var i = 0
+    while i < count {
+      var isAlive = particles[i].tick(seconds)
+      if isAlive {
+        i++
+        continue
+      }
+
+      # swap the current particle with the last active particle (this will swap with itself if this is the last active particle)
+      var temp = particles[i]
+      particles[i] = particles[count - 1]
+      particles[count - 1] = temp
+
+      # forget about the dead particle that we just moved to the end of the active particle list
+      count--
+    }
+  }
+
+  def drawAll(c Context) {
+    for i in 0..count {
+      var particle = particles[i]
+      var pos = particle.m_position
+      if pos.x >= gameState.drawMinX &&
+          pos.y >= gameState.drawMinY &&
+          pos.x <= gameState.drawMaxX &&
+          pos.y <= gameState.drawMaxY {
+        particle.draw(c)
+      }
+    }
+  }
+}

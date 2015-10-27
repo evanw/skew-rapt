@@ -1,0 +1,101 @@
+class JetStream : SpawningEnemy {
+  var direction double
+  var reloadAnimation = 0.0
+  var sprites = [Sprite.new, Sprite.new]
+
+  def new(center Vector, direction double) {
+    super(.JET_STREAM, center, WIDTH, HEIGHT, 0, SHOOT_FREQ, 0)
+    self.direction = direction
+    sprites[SPRITE_A].drawCallback = DrawJetStream.INSTANCE
+    sprites[SPRITE_B].drawCallback = DrawJetStream.INSTANCE
+  }
+
+  over canCollide bool {
+    return false
+  }
+
+  over spawn bool {
+    gameState.addEnemyWithCenter(RiotBullet.new(getCenter, direction), getCenter)
+    return true
+  }
+
+  over afterTick(seconds double) {
+    reloadAnimation += seconds * (0.5 / SHOOT_FREQ)
+
+    var angle = reloadAnimation * (2 * Math.PI / NUM_BARRELS)
+    var targetAngle = direction - Math.PI / 2
+    var bodyOffset = Vector.fromAngle(targetAngle) * 0.2
+
+    var position = getCenter
+    sprites[SPRITE_A].angle = targetAngle + angle
+    sprites[SPRITE_B].angle = targetAngle - angle
+    sprites[SPRITE_A].offsetBeforeRotation = position - bodyOffset
+    sprites[SPRITE_B].offsetBeforeRotation = position + bodyOffset
+
+    # adjust for even NUM_BARRELS
+    if (NUM_BARRELS & 1) == 0 {
+      sprites[SPRITE_B].angle += Math.PI / NUM_BARRELS
+    }
+  }
+
+  over draw(c Context) {
+    sprites[SPRITE_A].draw(c)
+    sprites[SPRITE_B].draw(c)
+
+    var angle = reloadAnimation * (TWOPI / NUM_BARRELS)
+    var targetAngle = direction - Math.PI / 2
+    var position = getCenter
+    var bodyOffset = Vector.fromAngle(targetAngle) * 0.2
+
+    c.setFillColor(.YELLOW)
+    c.setStrokeColor(.BLACK)
+
+    for side in [-1, 1] {
+      for i in 0..NUM_BARRELS {
+        var theta = i * (TWOPI / NUM_BARRELS) - side * angle
+        var reload = (reloadAnimation - i * side) / NUM_BARRELS + (side == 1 ? 0.5 : 0)
+
+        # adjust for even NUM_BARRELS
+        if side == 1 && (NUM_BARRELS & 1) == 0 {
+          theta += Math.PI / NUM_BARRELS
+          reload -= 0.5 / NUM_BARRELS
+        }
+
+        reload -= Math.floor(reload)
+
+        var pos = position + bodyOffset * side + bodyOffset.rotate(theta)
+        c.beginPath
+        c.arc(pos.x, pos.y, 0.1 * reload, 0, TWOPI, false)
+        c.fill
+        c.stroke
+      }
+    }
+  }
+}
+
+namespace JetStream {
+  const WIDTH = 0.4
+  const HEIGHT = 0.4
+  const SHOOT_FREQ = 0.2
+  const NUM_BARRELS = 3
+
+  const SPRITE_A = 0
+  const SPRITE_B = 1
+}
+
+class DrawJetStream :: DrawCallback {
+  def draw(c Context) {
+    c.setStrokeColor(.BLACK)
+    c.beginPath
+    for i in 0..JetStream.NUM_BARRELS {
+      var angle = i * (TWOPI / JetStream.NUM_BARRELS)
+      c.moveTo(0, 0)
+      c.lineTo(0.2 * Math.cos(angle), 0.2 * Math.sin(angle))
+    }
+    c.stroke
+  }
+}
+
+namespace DrawJetStream {
+  const INSTANCE = new
+}

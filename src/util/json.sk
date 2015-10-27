@@ -1,0 +1,64 @@
+@import
+class Json {
+  def count int {
+    return isArray ? (self as dynamic).length : 0
+  }
+
+  def asInt int {
+    return (self as dynamic) | 0
+  }
+
+  def asBool bool {
+    return !!(self as dynamic)
+  }
+
+  def isNull bool {
+    return self == null
+  }
+
+  def isNumber bool {
+    return dynamic.typeof(self) == "number"
+  }
+
+  def isString bool {
+    return dynamic.typeof(self) == "string"
+  }
+
+  def isObject bool {
+    return dynamic.typeof(self) == "object" && !isNull && !isArray
+  }
+
+  def isArray bool {
+    return self is dynamic.Array
+  }
+
+  def asDouble double {
+    return +(self as dynamic)
+  }
+
+  def asString string {
+    return (self as dynamic) + ""
+  }
+
+  def toString string {
+    return dynamic.JSON.stringify(self)
+  }
+
+  def keys List<string> {
+    return isObject ? dynamic.Object.keys(self) : []
+  }
+
+  def [](key string) Json {
+    return key in (self as dynamic) ? (self as dynamic)[key] : null
+  }
+
+  def [](index int) Json {
+    return index >= 0 && index < count ? (self as dynamic)[index] : null
+  }
+}
+
+namespace Json {
+  def parse(value string) Json {
+    return dynamic.JSON.parse(value)
+  }
+}

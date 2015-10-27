@@ -1,0 +1,37 @@
+class EdgeQuad {
+  var edges List<Edge> = [null, null, null, null]
+  var quantities List<double> = [0, 0, 0, 0]
+
+  def edge(type EdgeType) Edge {
+    return edges[type]
+  }
+
+  def quantity(type EdgeType) double {
+    return quantities[type]
+  }
+
+  def minimize(edge Edge, quantity double) {
+    var orientation = edge.getOrientation
+    if edges[orientation] == null || quantity < quantities[orientation] {
+      edges[orientation] = edge
+      quantities[orientation] = quantity
+    }
+  }
+
+  def throwOutIfGreaterThan(minimum double) {
+    for i in 0..4 {
+      if quantities[i] > minimum {
+        edges[i] = null
+      }
+    }
+  }
+
+  def nullifyEdges {
+    for i in 0..4 {
+      edges[i] = null
+    }
+  }
+}
+
+# This is a global because we only ever need one and allocations are expensive
+const edgeQuad = EdgeQuad.new

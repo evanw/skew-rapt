@@ -1,0 +1,80 @@
+class Wheeligator : WalkingEnemy {
+  var startsRight bool
+  var hitGround = false
+  var angularVelocity = 0.0
+  var bodySprite = Sprite.new
+
+  def new(center Vector, angle double) {
+    super(.WHEELIGATOR, center, RADIUS, ELASTICITY)
+    startsRight = Math.cos(angle) > 0
+    bodySprite.drawCallback = DrawWheeligator.INSTANCE
+  }
+
+  over move(seconds double) Vector {
+    var onFloor = isOnFloor
+
+    if !hitGround && onFloor && velocity.x < SPEED {
+      velocity.x = startsRight ? SPEED : -SPEED
+      hitGround = true
+    }
+
+    if onFloor {
+      angularVelocity = -velocity.x / RADIUS
+    }
+
+    velocity.y += FREEFALL_ACCEL * seconds
+    return velocity * seconds
+  }
+
+  over reactToWorld(contact Contact) {
+    # If a floor, bounce off like elasticity is FLOOR_ELASTICITY
+    if Edge.orientationFromNormal(contact.normal) == .FLOOR {
+      var perpendicular = velocity.projectOntoAUnitVector(contact.normal)
+      var parallel = velocity - perpendicular
+      velocity = parallel + perpendicular * FLOOR_ELASTICITY
+      angularVelocity = -velocity.x / RADIUS
+    }
+  }
+
+  over afterTick(seconds double) {
+    bodySprite.offsetBeforeRotation = getCenter
+    bodySprite.angle += angularVelocity * seconds
+  }
+
+  over draw(c Context) {
+    bodySprite.draw(c)
+  }
+}
+
+namespace Wheeligator {
+  const RADIUS = 0.3
+  const SPEED = 3.0
+  const ELASTICITY = 1.0
+  const FLOOR_ELASTICITY = 0.3
+}
+
+class DrawWheeligator :: DrawCallback {
+  def draw(c Context) {
+    const rim = 0.1
+
+    c.setStrokeColor(.BLACK)
+    c.beginPath
+    c.arc(0, 0, Wheeligator.RADIUS, 0, TWOPI, false)
+    c.arc(0, 0, Wheeligator.RADIUS - rim, Math.PI, 3 * Math.PI, false)
+    c.stroke
+
+    c.setFillColor(.BLACK)
+    for i in 0..4 {
+      var startAngle = i * (TWOPI / 4)
+      var endAngle = startAngle + Math.PI / 4
+      c.beginPath
+      c.arc(0, 0, Wheeligator.RADIUS, startAngle, endAngle, false)
+      c.arc(0, 0, Wheeligator.RADIUS - rim, endAngle, startAngle, true)
+      c.fill
+    }
+  }
+}
+
+namespace DrawWheeligator {
+  const INSTANCE = new
+}

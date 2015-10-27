@@ -1,0 +1,16 @@
+class WalkingEnemy : Enemy {
+  var hitCircle Circle
+
+  def new(type EnemyType, center Vector, radius double, elasticity double) {
+    super(type, elasticity)
+    hitCircle = Circle.new(center, radius)
+  }
+
+  over getShape Shape {
+    return hitCircle
+  }
+
+  over move(seconds double) Vector {
+    return velocity * seconds
+  }
+}

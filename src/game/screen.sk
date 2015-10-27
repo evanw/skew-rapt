@@ -1,0 +1,7 @@
+interface Screen {
+  def tick(seconds double)
+  def draw(c Context)
+  def resize(width int, height int)
+  def keyDown(key Key)
+  def keyUp(key Key)
+}

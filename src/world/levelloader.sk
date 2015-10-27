@@ -1,0 +1,100 @@
+def jsonToTarget(json Json) Player {
+  return json["color"].asInt == 1 ? gameState.playerA : gameState.playerB
+}
+
+def jsonToVector(json Json) Vector {
+  return Vector.new(json[0].asDouble, json[1].asDouble)
+}
+
+def jsonToEnemy(json Json) Enemy {
+  var pos = jsonToVector(json["pos"])
+  var type = json["type"].asString
+  if type == "bomber" { return Bomber.new(pos, json["angle"].asDouble) }
+  if type == "bouncy rocket launcher" { return BouncyRocketLauncher.new(pos, jsonToTarget(json)) }
+  if type == "corrosion cloud" { return CorrosionCloud.new(pos, jsonToTarget(json)) }
+  if type == "doom magnet" { return DoomMagnet.new(pos) }
+  if type == "grenadier" { return Grenadier.new(pos, jsonToTarget(json)) }
+  if type == "jet stream" { return JetStream.new(pos, json["angle"].asDouble) }
+  if type == "headache" { return Headache.new(pos, jsonToTarget(json)) }
+  if type == "hunter" { return Hunter.new(pos) }
+  if type == "multi gun" { return MultiGun.new(pos) }
+  if type == "popper" { return Popper.new(pos) }
+  if type == "rocket spider" { return RocketSpider.new(pos, json["angle"].asDouble) }
+  if type == "shock hawk" { return ShockHawk.new(pos, jsonToTarget(json)) }
+  if type == "spike ball" { return SpikeBall.new(pos) }
+  if type == "stalacbat" { return Stalacbat.new(pos, jsonToTarget(json)) }
+  if type == "wall avoider" { return WallAvoider.new(pos, jsonToTarget(json)) }
+  if type == "wall crawler" { return WallCrawler.new(pos, json["angle"].asDouble) }
+  if type == "wheeligator" { return Wheeligator.new(pos, json["angle"].asDouble) }
+  assert(false)
+  return SpikeBall.new(pos)
+}
+
+class GameState {
+  def loadLevelFromJSON(json Json) {
+    var width = json["width"].asInt
+    var height = json["height"].asInt
+    var cells = json["cells"]
+    var entities = json["entities"]
+
+    # Reset stats
+    stats = [0, 0, 0, 0]
+
+    # Load size, spawn point, and goal
+    world = World.new(width, height, jsonToVector(json["start"]), jsonToVector(json["end"]))
+
+    # Load cells & create edges
+    for y in 0..height {
+      var row = cells[y]
+      for x in 0..width {
+        var type = row[x].asInt as CellType
+        world.setCell(x, y, type)
+        if type != .SOLID {
+          world.safety = Vector.new(x + 0.5, y + 0.5)
+        }
+      }
+    }
+    world.createAllEdges
+
+    # Reset players
+    playerA.reset(world.spawnPoint, .RED)
+    playerB.reset(world.spawnPoint, .BLUE)
+
+    # Load entities
+    for i in 0..entities.count {
+      var e = entities[i]
+      var type = e["class"].asString
+
+      if type == "cog" {
+        enemies.append(Cog.new(jsonToVector(e["pos"])))
+      }
+
+      else if type == "wall" {
+        var start = jsonToVector(e["start"])
+        var end = jsonToVector(e["end"])
+        gameState.addDoor(end.x as int, end.y as int, start.x as int, start.y as int, e["oneway"].asBool ? .ONE_WAY : .TWO_WAY, e["color"].asInt as EdgeColor, e["open"].asBool)
+      }
+
+      else if type == "button" {
+        var button = Doorbell.new(jsonToVector(e["pos"]), e["type"].asInt as DoorbellBehavior, true)
+        var walls = e["walls"]
+        for j in 0..walls.count {
+          button.doors.append(walls[j].asInt)
+        }
+        enemies.append(button)
+      }
+
+      else if type == "sign" {
+        # enemies.append(HelpSign(jsonToVector(e["pos"]), e["text"]))
+      }
+
+      else if type == "enemy" {
+        enemies.append(jsonToEnemy(e))
+      }
+
+      else {
+        assert(false)
+      }
+    }
+  }
+}

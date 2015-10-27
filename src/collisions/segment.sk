@@ -1,0 +1,24 @@
+class Segment {
+  var start Vector
+  var end Vector
+  var normal Vector
+
+  def new(start Vector, end Vector) {
+    self.start = start
+    self.end = end
+    normal = end - start
+    normal.inplaceFlip
+    normal.normalize
+  }
+
+  def offsetBy(offset Vector) Segment {
+    return new(start + offset, end + offset)
+  }
+
+  def draw(c Context) {
+    c.beginPath
+    c.moveTo(start.x, start.y)
+    c.lineTo(end.x, end.y)
+    c.stroke
+  }
+}

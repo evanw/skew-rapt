@@ -1,0 +1,81 @@
+class Grenade : FreefallEnemy {
+  var timeUntilExplodes = LIFETIME
+
+  def new(center Vector, direction double, speed double) {
+    super(.GRENADE, center, RADIUS, ELASTICITY)
+    velocity = Vector.fromAngle(direction) * speed
+  }
+
+  over draw(c Context) {
+    var position = getShape.getCenter
+    var percentUntilExplodes = timeUntilExplodes / LIFETIME
+
+    # draw the expanding dot in the center
+    c.setFillColor(.BLACK)
+    c.beginPath
+    c.arc(position.x, position.y, (1 - percentUntilExplodes) * RADIUS, 0, TWOPI, false)
+    c.fill
+
+    # draw the rim
+    c.setStrokeColor(.BLACK)
+    c.beginPath
+    c.arc(position.x, position.y, RADIUS, 0, TWOPI, false)
+    c.stroke
+  }
+
+  # Grenades have a Tick that counts until their explosion
+  over tick(seconds double) {
+    timeUntilExplodes -= seconds
+
+    if timeUntilExplodes <= 0 {
+      setDead(true)
+    }
+
+    super(seconds)
+  }
+
+  # Grenades bounce around, and are not destroyed by edges like other FreefallEnemies
+  over reactToWorld(contact Contact) {
+  }
+
+  over onDeath {
+    var position = getCenter
+
+    # fire
+    for i in 0..100 {
+      var direction = Vector.fromAngle(randInRange(0, TWOPI)) * randInRange(1, 10)
+      Particle.triangle
+        .position(position)
+        .velocity(direction)
+        .randomRadius(0.1, 0.2)
+        .randomBounces(0, 4)
+        .randomElasticity(0.05, 0.9)
+        .randomDecay(0.0001, 0.001)
+        .randomExpand(1, 1.2)
+        .color(1, 0.25, 0, 1)
+        .mixColor(1, 0.5, 0, 1)
+    }
+
+    # smoke
+    for i in 0..50 {
+      var direction = Vector.new(0, 1) + Vector.fromAngle(randInRange(0, TWOPI)) * randInRange(0.25, 1)
+      Particle.circle
+        .position(position)
+        .velocity(direction)
+        .randomRadius(0.1, 0.2)
+        .randomBounces(1, 3)
+        .randomElasticity(0.05, 0.9)
+        .randomDecay(0.0005, 0.1)
+        .randomExpand(1.1, 1.3)
+        .color(0, 0, 0, 1)
+        .mixColor(0.5, 0.5, 0.5, 1)
+        .randomGravity(-0.4, 0)
+    }
+  }
+}
+
+namespace Grenade {
+  const LIFETIME = 5.0
+  const RADIUS = 0.2
+  const ELASTICITY = 0.5
+}

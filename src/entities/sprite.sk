@@ -1,0 +1,60 @@
+class Sprite {
+  var flip = false
+  var angle = 0.0
+  var offsetBeforeRotation = Vector.new(0, 0)
+  var offsetAfterRotation = Vector.new(0, 0)
+  var parent Sprite = null
+  var firstChild Sprite = null
+  var nextSibling Sprite = null
+  var drawCallback DrawCallback = null
+
+  def clone Sprite {
+    var sprite = new
+    sprite.flip = flip
+    sprite.angle = angle
+    sprite.offsetBeforeRotation = offsetBeforeRotation
+    sprite.offsetAfterRotation = offsetAfterRotation
+    sprite.drawCallback = drawCallback
+    return sprite
+  }
+
+  def setParent(newParent Sprite) {
+    # remove from the old parent
+    if parent != null {
+      if parent.firstChild == self {
+        parent.firstChild = nextSibling
+      } else {
+        for sprite = parent.firstChild; sprite != null; sprite = sprite.nextSibling {
+          if sprite.nextSibling == self {
+            sprite.nextSibling = nextSibling
+          }
+        }
+      }
+    }
+
+    # switch to new parent
+    nextSibling = null
+    parent = newParent
+
+    # add to new parent
+    if parent != null {
+      nextSibling = parent.firstChild
+      parent.firstChild = self
+    }
+  }
+
+  def draw(c Context) {
+    c.save
+    c.translate(offsetBeforeRotation.x, offsetBeforeRotation.y)
+    if flip { c.scale(-1, 1) }
+    c.rotate(angle)
+    c.translate(offsetAfterRotation.x, offsetAfterRotation.y)
+
+    drawCallback.draw(c)
+    for sprite = firstChild; sprite != null; sprite = sprite.nextSibling {
+      sprite.draw(c)
+    }
+
+    c.restore
+  }
+}

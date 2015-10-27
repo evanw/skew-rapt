@@ -1,0 +1,28 @@
+class Keyframe {
+  var center Vector
+  var angles List<double>
+
+  def degreesToRadians Keyframe {
+    for i in 0..angles.count {
+      angles[i] = angles[i] * (Math.PI / 180)
+    }
+    return self
+  }
+}
+
+namespace Keyframe {
+  def tween(a Keyframe, b Keyframe, percent double) Keyframe {
+    assert(a.angles.count == b.angles.count)
+    var angles List<double> = []
+    for i in 0..a.angles.count {
+      angles.append(lerp(a.angles[i], b.angles[i], percent))
+    }
+    return Keyframe.new(Vector.lerp(a.center, b.center, percent), angles)
+  }
+
+  def loop(keyframes List<Keyframe>, percent double) Keyframe {
+    var count = keyframes.count
+    var floor = Math.floor(percent) as int
+    return tween(keyframes[floor % count], keyframes[(floor + 1) % count], percent - floor)
+  }
+}

@@ -1,0 +1,119 @@
+class Cog : Enemy {
+  var hitCircle Circle
+  var timeSinceStart = 0.0
+
+  def new(center Vector) {
+    super(.COG, 0)
+    hitCircle = Circle.new(center, RADIUS)
+    gameState.incrementStat(.NUM_COGS)
+  }
+
+  over getShape Shape {
+    return hitCircle
+  }
+
+  over reactToPlayer(player Player) {
+    setDead(true)
+  }
+
+  over onDeath {
+    if gameState.gameStatus == .IN_PLAY {
+      gameState.incrementStat(.COGS_COLLECTED)
+    }
+
+    # Golden particle goodness
+    var position = getCenter
+    for i in 0..100 {
+      var direction = Vector.fromAngle(randInRange(0, TWOPI))
+      direction = velocity + direction * randInRange(1, 5)
+      Particle.triangle
+        .position(position)
+        .velocity(direction)
+        .randomRadius(0.01, 1.5)
+        .randomBounces(0, 4)
+        .randomElasticity(0.05, 0.9)
+        .randomDecay(0.01, 0.5)
+        .color(0.9, 0.87, 0, 1)
+        .mixColor(1, 0.96, 0, 1)
+    }
+  }
+
+  over afterTick(seconds double) {
+    timeSinceStart += seconds
+  }
+
+  over draw(c Context) {
+    var position = getCenter
+    drawCogEntity(c, position.x, position.y, timeSinceStart)
+  }
+}
+
+namespace Cog {
+  const RADIUS = 0.25
+  const ICON_TEETH_COUNT = 16
+}
+
+def drawCog(c Context, x double, y double, radius double, numTeeth int, numSpokes int, numVertices int) {
+  # var innerRadius = radius * 0.2
+  var spokeRadius = radius * 0.8
+  var spokeWidth1 = radius * 0.125
+  var spokeWidth2 = radius * 0.05
+
+  # draw the vertices with zig-zags for triangle strips and outlines for line strip
+  c.beginPath
+  for iter in 0..2 {
+    for i in 0..numVertices {
+      var angle = (i + 0.25) / numVertices * TWOPI
+      var s = Math.sin(angle)
+      var csn = Math.cos(angle)
+      var r1 = radius * 0.7
+      var r2 = radius * (1.0 + Math.cos(angle * numTeeth * 0.5) * 0.1)
+      if iter == 0 { c.lineTo(csn * r1, -s * r1) }
+      else if i == 0 { c.moveTo(csn * r2, s * r2) }
+      else { c.lineTo(csn * r2, s * r2) }
+    }
+    c.closePath
+  }
+  c.fill
+
+  for i in 0..numSpokes {
+    var angle = i * TWOPI / numSpokes
+    var s = Math.sin(angle)
+    var csn = Math.cos(angle)
+    c.beginPath
+    c.lineTo(s * spokeWidth1, -csn * spokeWidth1)
+    c.lineTo(-s * spokeWidth1, csn * spokeWidth1)
+    c.lineTo(csn * spokeRadius - s * spokeWidth2, s * spokeRadius + csn * spokeWidth2)
+    c.lineTo(csn * spokeRadius + s * spokeWidth2, s * spokeRadius - csn * spokeWidth2)
+    c.fill
+  }
+
+  # c.beginPath
+  # for i in 0..numTeeth {
+  #   var angle = i * (Math.PI * 2.0) / numTeeth
+  #   var s = Math.sin(angle)
+  #   var csn = Math.cos(angle)
+  #   c.lineTo(csn * innerRadius, s * innerRadius)
+  # }
+  # c.fill
+}
+
+# def drawCogIcon(c Context, x double, y double, time double) {
+#   c.save
+#   c.setStrokeColor(.COG_YELLOW)
+#   c.setFillColor(.COG_YELLOW)
+#   c.translate(x, y)
+#   c.rotate(time * (Math.PI / 2) + (time < 0 ? TWOPI / Cog.ICON_TEETH_COUNT : 0))
+#   drawCog(c, 0, 0, COG_ICON_RADIUS, Cog.ICON_TEETH_COUNT, 5, 64)
+#   c.restore
+# }
+
+def drawCogEntity(c Context, x double, y double, time double) {
+  c.save
+  c.setStrokeColor(.COG_YELLOW)
+  c.setFillColor(.COG_YELLOW)
+  c.translate(x, y)
+  c.rotate(time * (Math.PI / 2))
+  drawCog(c, x, y, Cog.RADIUS, 16, 5, 64)
+  c.restore
+}

@@ -1,0 +1,96 @@
+class Grenadier : SpawningEnemy {
+  var target Player
+  var actualRecoilDistance = 0.0
+  var targetRecoilDistance = 0.0
+  var bodySprite = Sprite.new
+
+  def new(center Vector, target Player) {
+    super(.GRENADIER, center, WIDTH, HEIGHT, 0, SHOOT_FREQ, randInRange(0, SHOOT_FREQ))
+    self.target = target
+    bodySprite.drawCallback = DrawGrenadier.INSTANCE
+  }
+
+  over canCollide bool {
+    return false
+  }
+
+  over spawn bool {
+    var targetDelta = target.getCenter + Vector.new(0, 3) - getCenter
+    var direction = targetDelta.atan2
+    var distance = targetDelta.length
+
+    # If Player is out of range or out of line of sight, don't throw anything
+    if !target.isDead && distance < RANGE && CollisionDetector.lineOfSightWorld(getCenter, target.getCenter) == null {
+      targetRecoilDistance = distance * (0.6 / RANGE)
+      gameState.addEnemyWithCenter(Grenade.new(getCenter, direction, targetDelta.length), getCenter)
+      return true
+    }
+
+    return false
+  }
+
+  over afterTick(seconds double) {
+    var position = getCenter
+    if !target.isDead {
+      bodySprite.angle = (target.getCenter + Vector.new(0, 3) - position).atan2 + Math.PI / 2
+    }
+    bodySprite.offsetBeforeRotation = position
+
+    if actualRecoilDistance < targetRecoilDistance {
+      actualRecoilDistance += 5 * seconds
+      if actualRecoilDistance >= targetRecoilDistance {
+        actualRecoilDistance = targetRecoilDistance
+        targetRecoilDistance = 0
+      }
+    } else {
+      actualRecoilDistance -= 0.5 * seconds
+      if actualRecoilDistance <= 0 {
+        actualRecoilDistance = 0
+      }
+    }
+
+    bodySprite.offsetAfterRotation = Vector.new(0, actualRecoilDistance)
+  }
+
+  over draw(c Context) {
+    c.setFillColor(target == gameState.playerA ? .RED : .BLUE)
+    c.setStrokeColor(.BLACK)
+    bodySprite.draw(c)
+  }
+}
+
+namespace Grenadier {
+  const WIDTH = 0.5
+  const HEIGHT = 0.5
+
+  # Max speed at which a Grenadier can throw an enemy
+  const RANGE = 8.0
+  const SHOOT_FREQ = 1.2
+}
+
+class DrawGrenadier :: DrawCallback {
+  def draw(c Context) {
+    const barrelLength = 0.25
+    const outerRadius = 0.25
+    const innerRadius = 0.175
+
+    c.beginPath
+    c.moveTo(-outerRadius, -barrelLength)
+    c.lineTo(-innerRadius, -barrelLength)
+    c.lineTo(-innerRadius, -0.02)
+    c.lineTo(0, innerRadius)
+    c.lineTo(innerRadius, -0.02)
+    c.lineTo(innerRadius, -barrelLength)
+    c.lineTo(outerRadius, -barrelLength)
+    c.lineTo(outerRadius, 0)
+    c.lineTo(0, outerRadius + 0.02)
+    c.lineTo(-outerRadius, 0)
+    c.closePath
+    c.fill
+    c.stroke
+  }
+}
+
+namespace DrawGrenadier {
+  const INSTANCE = new
+}

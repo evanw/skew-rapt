@@ -1,0 +1,197 @@
+enum HunterState {
+  IDLE
+  RED
+  BLUE
+  BOTH
+}
+
+class Hunter : RotatingEnemy {
+  var state HunterState = .IDLE
+  var target Player = null
+  var acceleration = Vector.new(0, 0)
+  var jawAngle = 0.0
+  var sprites = [Sprite.new, Sprite.new, Sprite.new]
+
+  def new(center Vector) {
+    super(.HUNTER, center, RADIUS, 0, ELASTICITY)
+    sprites[BODY].drawCallback = DrawHunterBody.INSTANCE
+    sprites[CLAW1].drawCallback = DrawHunterClaw.INSTANCE
+    sprites[CLAW2].drawCallback = DrawHunterClaw.INSTANCE
+    sprites[CLAW1].setParent(sprites[BODY])
+    sprites[CLAW2].setParent(sprites[BODY])
+    sprites[CLAW2].flip = true
+    sprites[BODY].offsetAfterRotation = Vector.new(0, -0.2)
+  }
+
+  over avoidsSpawn bool {
+    return true
+  }
+
+  def calcAcceleration(center Vector) Vector {
+    return (center.unit - velocity * (3.0 / CHASE_ACCEL)).unit * CHASE_ACCEL
+  }
+
+  def playerInSight(player Player, distanceSquared double) bool {
+    if player.isDead { return false }
+    return CollisionDetector.lineOfSightWorld(getCenter, player.getCenter) == null && distanceSquared < CHASE_RANGE * CHASE_RANGE
+  }
+
+  over move(seconds double) Vector {
+    # Relative player positions
+    var deltaA = gameState.playerA.getCenter - getCenter
+    var deltaB = gameState.playerB.getCenter - getCenter
+
+    # Projection positions with lookahead
+    var projectedA = deltaA + gameState.playerA.getVelocity * (LOOKAHEAD * seconds)
+    var projectedB = deltaB + gameState.playerB.getVelocity * (LOOKAHEAD * seconds)
+
+    # Squared distances
+    var distASquared = deltaA.lengthSquared
+    var distBSquared = deltaB.lengthSquared
+
+    # Checks if players are in sight
+    var inSightA = playerInSight(gameState.playerA, distASquared)
+    var inSightB = playerInSight(gameState.playerB, distBSquared)
+
+    # If player A is in sight
+    if inSightA {
+      # If both in sight
+      if inSightB {
+        # If they're on the same side of the Hunter, the Hunter will flee
+        if deltaA.dot(velocity) * deltaB.dot(velocity) >= 0 {
+          acceleration = (deltaA.unit + deltaB.unit) * (-0.5 * FLEE_ACCEL)
+          target = null
+          state = .BOTH
+        } else if distASquared < distBSquared {
+          # Otherwise the hunter will chase after the closer of the two players
+          acceleration = calcAcceleration(projectedA)
+          target = gameState.playerA
+          state = .RED
+        } else {
+          acceleration = calcAcceleration(projectedB)
+          target = gameState.playerB
+          state = .BLUE
+        }
+      # If only player A in sight
+      } else {
+        acceleration = calcAcceleration(projectedA)
+        target = gameState.playerA
+        state = .RED
+      }
+    } else if inSightB {
+      # If only player B in sight
+      acceleration = calcAcceleration(projectedB)
+      target = gameState.playerB
+      state = .BLUE
+    } else {
+      acceleration.x = 0
+      acceleration.y = 0
+      target = null
+      state = .IDLE
+    }
+
+    # Damp the movement so it doesn't keep floating around
+    # Time independent version of multiplying by 0.99
+    velocity *= Math.pow(0.366032, seconds)
+
+    return accelerate(acceleration, seconds)
+  }
+
+  over afterTick(seconds double) {
+    var position = getCenter
+    sprites[BODY].offsetBeforeRotation = position
+
+    if target != null {
+      var currentAngle = sprites[BODY].angle
+      var targetAngle = (target.getCenter - position).atan2 - Math.PI / 2
+      sprites[BODY].angle = adjustAngleToTarget(currentAngle, targetAngle, Math.PI * seconds)
+    }
+
+    var targetJawAngle = target != null ? -0.2 : 0
+    jawAngle = adjustAngleToTarget(jawAngle, targetJawAngle, 0.4 * seconds)
+    sprites[CLAW1].angle = jawAngle
+    sprites[CLAW2].angle = jawAngle
+  }
+
+  over draw(c Context) {
+    c.setFillColor(target == gameState.playerA ? .RED : .BLUE)
+    c.setStrokeColor(.BLACK)
+
+    if state != .IDLE {
+      var angle = sprites[BODY].angle + Math.PI / 2
+      var fromEye = Vector.fromAngle(angle)
+      var eye = getCenter - fromEye * 0.2
+
+      if state == .RED {
+        c.setFillColor(.RED)
+        c.beginPath
+        c.arc(eye.x, eye.y, 0.1, 0, TWOPI, false)
+        c.fill
+      } else if state == .BLUE {
+        c.setFillColor(.BLUE)
+        c.beginPath
+        c.arc(eye.x, eye.y, 0.1, 0, TWOPI, false)
+        c.fill
+      } else {
+        c.setFillColor(.RED)
+        c.beginPath
+        c.arc(eye.x, eye.y, 0.1, angle, angle + Math.PI, false)
+        c.fill
+
+        c.setFillColor(.BLUE)
+        c.beginPath
+        c.arc(eye.x, eye.y, 0.1, angle + Math.PI, angle + TWOPI, false)
+        c.fill
+
+        c.beginPath
+        c.moveTo(eye.x - fromEye.x * 0.1, eye.y - fromEye.y * 0.1)
+        c.lineTo(eye.x + fromEye.x * 0.1, eye.y + fromEye.y * 0.1)
+        c.stroke
+      }
+    }
+
+    sprites[BODY].draw(c)
+  }
+}
+
+namespace Hunter {
+  const BODY = 0
+  const CLAW1 = 1
+  const CLAW2 = 2
+
+  const RADIUS = 0.3
+  const ELASTICITY = 0.4
+  const CHASE_ACCEL = 14.0
+  const FLEE_ACCEL = 3.0
+  const FLEE_RANGE = 10.0
+  const CHASE_RANGE = 8.0
+  const LOOKAHEAD = 20.0
+}
+
+class DrawHunterBody :: DrawCallback {
+  def draw(c Context) {
+    c.beginPath
+    c.arc(0, 0, 0.1, 0, TWOPI, false)
+    c.stroke
+  }
+}
+
+namespace DrawHunterBody {
+  const INSTANCE = new
+}
+
+class DrawHunterClaw :: DrawCallback {
+  def draw(c Context) {
+    c.beginPath
+    c.moveTo(0, 0.1)
+    for i in 0..7 {
+      c.lineTo((i & 1) / 24.0, 0.2 + i * 0.05)
+    }
+    c.arc(0, 0.2, 0.3, 0.5 * Math.PI, -0.5 * Math.PI, true)
+    c.stroke
+  }
+}
+
+namespace DrawHunterClaw {
+  const INSTANCE = new
+}

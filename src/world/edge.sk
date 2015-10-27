@@ -1,0 +1,78 @@
+enum EdgeType {
+  FLOOR
+  LEFT
+  RIGHT
+  CEILING
+}
+
+enum EdgeColor {
+  NEUTRAL
+  RED
+  BLUE
+  PLAYERS
+  ENEMIES
+}
+
+class Edge {
+  var segment Segment
+  var color EdgeColor
+
+  def new(start Vector, end Vector, color EdgeColor) {
+    segment = Segment.new(start, end)
+    self.color = color
+  }
+
+  def blocksColor(entityColor EdgeColor) bool {
+    switch color {
+      case .NEUTRAL { return true }
+      case .RED { return entityColor != .RED }
+      case .BLUE { return entityColor != .BLUE }
+      case .PLAYERS { return entityColor != .RED && entityColor != .BLUE }
+      case .ENEMIES { return entityColor != .ENEMIES }
+    }
+    return false
+  }
+
+  def getStart Vector {
+    return segment.start
+  }
+
+  def getEnd Vector {
+    return segment.end
+  }
+
+  def getOrientation EdgeType {
+    return orientationFromNormal(segment.normal)
+  }
+
+  def draw(c Context) {
+    switch color {
+      case .NEUTRAL { c.setStrokeColor(.BLACK) }
+      case .RED { c.setStrokeColor(.MUTED_RED) }
+      case .BLUE { c.setStrokeColor(.MUTED_BLUE) }
+    }
+    segment.draw(c)
+
+    var xOffset = segment.normal.x * 0.1
+    var yOffset = segment.normal.y * 0.1
+
+    c.beginPath
+    var num = 10
+    for i in 1..num - 1 {
+      var fraction = (i as double) / (num - 1)
+      var start = Vector.lerp(segment.start, segment.end, fraction)
+      c.moveTo(start.x, start.y)
+      c.lineTo(start.x - xOffset, start.y - yOffset)
+    }
+    c.stroke
+  }
+}
+
+namespace Edge {
+  def orientationFromNormal(normal Vector) EdgeType {
+    if normal.x > 0.9 { return .LEFT }
+    if normal.x < -0.9 { return .RIGHT }
+    if normal.y < 0 { return .CEILING }
+    return .FLOOR
+  }
+}

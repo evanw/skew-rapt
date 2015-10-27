@@ -1,0 +1,239 @@
+class RocketSpider : SpawningEnemy {
+  var leftChasesA = true
+  var leftSpawnPoint = Vector.new(0, 0)
+  var rightSpawnPoint = Vector.new(0, 0)
+  var timeSinceStart = 0.0
+  var sprites = createSpiderSprites
+  var legs RocketSpiderLegs
+
+  # spiders periodically "twitch" when their animation resets because the
+  # collision detection doesn't see them as on the floor, so only change
+  # to a falling animation if we haven't been on the floor for a few ticks
+  var animationDelay = 0.0
+  var animationIsOnFloor = false
+
+  def new(center Vector, angle double) {
+    super(.ROCKET_SPIDER, center + Vector.new(0, 0.81 - RocketSpiderLegs.RADIUS + HEIGHT * 0.5), WIDTH, HEIGHT, ELASTICITY, SHOOT_FREQ, 0)
+    legs = RocketSpiderLegs.new(center, angle, self)
+    gameState.addEnemyWithCenter(legs, legs.getShape.getCenter)
+  }
+
+  over canCollide bool {
+    return false
+  }
+
+  # Returns true iff the target is in the spider's sight line
+  def playerInSight(target Player) bool {
+    if target.isDead { return false }
+    var relativePos = target.getCenter - getCenter
+    var relativeAngle = relativePos.atan2
+
+    # Player needs to be within a certain height range, in the line of sight, and between the angle of pi/4 and 3pi/4
+    if relativePos.y < SIGHT_HEIGHT && relativeAngle > Math.PI * 0.25 && relativeAngle < Math.PI * 0.75 {
+      return CollisionDetector.lineOfSightWorld(getCenter, target.getCenter) == null
+    }
+
+    return false
+  }
+
+  def spawnRocket(loc Vector, target Player, angle double) {
+    gameState.addEnemyWithCenter(Rocket.new(loc, target, angle), getCenter)
+  }
+
+  # When either Player is above the cone of sight extending above the spider, shoot
+  over spawn bool {
+    var center = getCenter
+    leftSpawnPoint = Vector.new(center.x - WIDTH * 0.4, center.y + HEIGHT * 0.4)
+    rightSpawnPoint = Vector.new(center.x + WIDTH * 0.4, center.y + HEIGHT * 0.4)
+
+    if playerInSight(gameState.playerA) {
+      if playerInSight(gameState.playerB) {
+        spawnRocket(leftChasesA ? leftSpawnPoint : rightSpawnPoint, gameState.playerA, leftChasesA ? Math.PI * 0.75 : Math.PI * 0.25)
+        spawnRocket(leftChasesA ? rightSpawnPoint : leftSpawnPoint, gameState.playerB, leftChasesA ? Math.PI * 0.25 : Math.PI * 0.75)
+        leftChasesA = !leftChasesA
+        return true
+      } else {
+        spawnRocket(leftSpawnPoint, gameState.playerA, Math.PI * 0.75)
+        spawnRocket(rightSpawnPoint, gameState.playerA, Math.PI * 0.25)
+        return true
+      }
+    } else if playerInSight(gameState.playerB) {
+      spawnRocket(leftSpawnPoint, gameState.playerB, Math.PI * 0.75)
+      spawnRocket(rightSpawnPoint, gameState.playerB, Math.PI * 0.25)
+      return true
+    }
+    return false
+  }
+
+  # Rocket spiders hover slowly over the floor, bouncing off walls with elasticity 1
+  over move(seconds double) Vector {
+    # The height difference is h = player_height - RocketSpiderLegs.RADIUS + HEIGHT / 2
+    return legs.getCenter - getCenter + Vector.new(0, 0.81 - RocketSpiderLegs.RADIUS + HEIGHT * 0.5)
+  }
+
+  over afterTick(seconds double) {
+    var position = getCenter
+    sprites[BODY].offsetBeforeRotation = position
+    sprites[BODY].flip = legs.velocity.x > 0
+
+    # work out whether the spider is on the floor (walking animation) or in the air (falling animation)
+    var isOnFloor = legs.isOnFloor
+    if isOnFloor != animationIsOnFloor {
+      # wait 1 tick before changing the animation to avoid "twitching"
+      animationDelay++
+      if animationDelay > 1 {
+        animationIsOnFloor = isOnFloor
+        animationDelay = 0
+      }
+    } else {
+      animationDelay = 0
+    }
+
+    timeSinceStart += seconds * 0.5
+    var frame Keyframe
+    if !animationIsOnFloor {
+      var percent = legs.velocity.y * -0.25
+      percent = percent < 0.01 ? 0 : 1 - 1 / (1 + percent)
+      frame = Keyframe.tween(SPIDER_FALLING_KEYFRAME_0, SPIDER_FALLING_KEYFRAME_1, percent)
+    } else {
+      frame = Keyframe.loop(SPIDER_WALKING_KEYFRAMES, 10 * timeSinceStart)
+    }
+
+    for i in 0..NUM_SPRITES {
+      sprites[i].angle = frame.angles[i]
+    }
+  }
+
+  # The body of the Spider kills the player
+  over reactToPlayer(player Player) {
+    player.setDead(true)
+  }
+
+  over onDeath {
+    # don't add this death to the stats because it is added in the legs OnDeath method
+
+    # add something that looks like the body
+    Particle.custom(DrawSpiderBody.INSTANCE)
+      .position(getCenter)
+      .bounces(1)
+      .gravity(5)
+      .decay(0.1)
+      .color(0, 0, 0, 1)
+      .angle(0)
+      .angularVelocity(randInRange(-Math.PI, Math.PI))
+  }
+
+  over draw(c Context) {
+    c.setStrokeColor(.BLACK)
+    c.setFillColor(.BLACK)
+    sprites[BODY].draw(c)
+  }
+}
+
+namespace RocketSpider {
+  const LEG_HEIGHT = 0.5
+
+  const BODY = 0
+  const LEG1_TOP = 1
+  const LEG2_TOP = 2
+  const LEG3_TOP = 3
+  const LEG4_TOP = 4
+  const LEG5_TOP = 5
+  const LEG6_TOP = 6
+  const LEG7_TOP = 7
+  const LEG8_TOP = 8
+  const LEG1_BOTTOM = 9
+  const LEG2_BOTTOM = 10
+  const LEG3_BOTTOM = 11
+  const LEG4_BOTTOM = 12
+  const LEG5_BOTTOM = 13
+  const LEG6_BOTTOM = 14
+  const LEG7_BOTTOM = 15
+  const LEG8_BOTTOM = 16
+  const NUM_SPRITES = 17
+
+  const SPIDER_WALKING_KEYFRAMES = [
+    Keyframe.new(Vector.new(0, 0), [0, -10, -20, -10, 10, -10, 10, -10, -20, 20, 10, 70, 20, 70, 20, 20, 10]).degreesToRadians,
+    Keyframe.new(Vector.new(0, 0), [0, 10, -10, -20, -10, -20, -10, 10, -10, 20, 20, 10, 70, 10, 70, 20, 20]).degreesToRadians,
+    Keyframe.new(Vector.new(0, 0), [0, -10, 10, -10, -20, -10, -20, -10, 10, 70, 20, 20, 10, 20, 10, 70, 20]).degreesToRadians,
+    Keyframe.new(Vector.new(0, 0), [0, -20, -10, 10, -10, 10, -10, -20, -10, 10, 70, 20, 20, 20, 20, 10, 70]).degreesToRadians,
+  ]
+
+  const SPIDER_FALLING_KEYFRAME_0 = Keyframe.new(Vector.new(0, 0), [0, 7, 3, -1, -5, 5, 1, -3, -7, -14, -6, 2, 10, -10, -2, 6, 14]).degreesToRadians
+  const SPIDER_FALLING_KEYFRAME_1 = Keyframe.new(Vector.new(0, 0), [0, 30, 10, -30, -20, 30, 40, -10, -35, -50, -90, 40, 20, -50, -40, 70, 30]).degreesToRadians
+
+  const WIDTH = 0.9
+  const HEIGHT = 0.3
+  const SHOOT_FREQ = 2.0
+  const SPEED = 1.0
+  const ELASTICITY = 1.0
+  const FLOOR_DIST = 1.0
+  const SIGHT_HEIGHT = 10.0 # Spiders can only see this many cells high
+
+  def createSpiderSprites List<Sprite> {
+    var sprites List<Sprite> = []
+
+    for i in 0..NUM_SPRITES {
+      sprites.append(Sprite.new)
+      sprites[i].drawCallback = i == 0 ? DrawSpiderBody.INSTANCE : DrawSpiderLeg.INSTANCE
+    }
+
+    for i in LEG1_TOP..LEG8_TOP + 1 {
+      sprites[i].setParent(sprites[BODY])
+    }
+
+    for i in LEG1_BOTTOM..LEG8_BOTTOM + 1 {
+      sprites[i].setParent(sprites[i - LEG1_BOTTOM + LEG1_TOP])
+    }
+
+    sprites[LEG1_TOP].offsetBeforeRotation = Vector.new(WIDTH * 0.35, 0)
+    sprites[LEG2_TOP].offsetBeforeRotation = Vector.new(WIDTH * 0.15, 0)
+    sprites[LEG3_TOP].offsetBeforeRotation = Vector.new(WIDTH * -0.05, 0)
+    sprites[LEG4_TOP].offsetBeforeRotation = Vector.new(WIDTH * -0.25, 0)
+
+    sprites[LEG5_TOP].offsetBeforeRotation = Vector.new(WIDTH * 0.25, 0)
+    sprites[LEG6_TOP].offsetBeforeRotation = Vector.new(WIDTH * 0.05, 0)
+    sprites[LEG7_TOP].offsetBeforeRotation = Vector.new(WIDTH * -0.15, 0)
+    sprites[LEG8_TOP].offsetBeforeRotation = Vector.new(WIDTH * -0.35, 0)
+
+    for i in LEG1_BOTTOM..LEG8_BOTTOM + 1 {
+      sprites[i].offsetBeforeRotation = Vector.new(0, -LEG_HEIGHT)
+    }
+
+    return sprites
+  }
+}
+
+class DrawSpiderBody :: DrawCallback {
+  def draw(c Context) {
+    const innerRadius = 0.5
+    c.beginPath
+    for i in 0..22 {
+      var angle = (0.25 + 0.5 * i / 21) * Math.PI
+      var radius = 0.6 + 0.05 * (i & 2)
+      c.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius - 0.5)
+    }
+    for i in 0..22 {
+      var angle = (0.25 + 0.5 * (21 - i) / 21) * Math.PI
+      c.lineTo(Math.cos(angle) * innerRadius, Math.sin(angle) * innerRadius - 0.5)
+    }
+    c.fill
+  }
+}
+
+namespace DrawSpiderBody {
+  const INSTANCE = new
+}
+
+class DrawSpiderLeg :: DrawCallback {
+  def draw(c Context) {
+    c.beginPath
+    c.moveTo(0, 0)
+    c.lineTo(0, -RocketSpider.LEG_HEIGHT)
+    c.stroke
+  }
+}
+
+namespace DrawSpiderLeg {
+  const INSTANCE = new
+}

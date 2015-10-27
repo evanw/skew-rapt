@@ -1,0 +1,67 @@
+class CorrosionCloud : RotatingEnemy {
+  var target Player
+  var smoothedVelocity = Vector.new(0, 0)
+
+  def new(center Vector, target Player) {
+    super(.CLOUD, center, RADIUS, 0, 0)
+    self.target = target
+  }
+
+  over canCollide bool {
+    return false
+  }
+
+  over avoidsSpawn bool {
+    return true
+  }
+
+  over move(seconds double) Vector {
+    if target == null { return Vector.new(0, 0) }
+    var targetDelta = target.getCenter - getCenter
+
+    # As long as the max rotation is over 2 pi, it will rotate to face the player no matter what
+    heading = adjustAngleToTarget(heading, targetDelta.atan2, 7)
+
+    # ACCELERATION
+    var speed = SPEED * ACCEL * seconds
+    velocity.x += speed * Math.cos(heading)
+    velocity.y += speed * Math.sin(heading)
+
+    if velocity.lengthSquared > SPEED * SPEED {
+      velocity.normalize
+      velocity *= SPEED
+    }
+
+    return velocity * seconds
+  }
+
+  over afterTick(seconds double) {
+    var direction = Vector.fromAngle(randInRange(0, TWOPI))
+    var center = getCenter + direction * randInRange(0, RADIUS)
+    var isRed = target == gameState.playerA ? 0.4 : 0
+    var isBlue = target == gameState.playerB ? 0.3 : 0
+
+    smoothedVelocity = Vector.lerp(smoothedVelocity, velocity, 0.05)
+    Particle.circle
+      .position(center)
+      .velocity(smoothedVelocity + Vector.new(Math.random * 0.2 - 0.1, Math.random * 0.2 - 0.1))
+      .randomRadius(0.01, 0.1)
+      .randomBounces(0, 4)
+      .randomElasticity(0.05, 0.9)
+      .randomDecay(0.01, 0.5)
+      .randomExpand(1, 1.2)
+      .color(0.2 + isRed, 0.2, 0.2 + isBlue, 1)
+      .mixColor(0.1 + isRed, 0.1, 0.1 + isBlue, 1)
+      .randomGravity(-0.4, 0)
+  }
+
+  over draw(c Context) {
+    # do nothing, it's all particles!
+  }
+}
+
+namespace CorrosionCloud {
+  const RADIUS = 0.5
+  const SPEED = 0.7
+  const ACCEL = 10.0
+}

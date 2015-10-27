@@ -1,0 +1,76 @@
+enum DoorbellBehavior {
+  OPEN
+  CLOSE
+  TOGGLE
+}
+
+enum DoorType {
+  ONE_WAY
+  TWO_WAY
+}
+
+class Door {
+  var cells List<Cell>
+  var edges List<Edge>
+
+  def new(edge0 Edge, edge1 Edge, cell0 Cell, cell1 Cell) {
+    cells = [cell0, cell1]
+    edges = [edge0, edge1]
+  }
+
+  def doorExists(i int) bool {
+    if edges[i] == null {
+      return false
+    }
+
+    var cell = cells[i]
+    return cell != null && cell.getEdge(edges[i]) != -1
+  }
+
+  def doorPut(i int, kill bool) {
+    if edges[i] != null && !doorExists(i) {
+      var cell = cells[i]
+      if cell == null {
+        return
+      }
+
+      cell.addEdge(Edge.new(edges[i].getStart, edges[i].getEnd, edges[i].color))
+      if kill {
+        gameState.killAll(edges[i])
+      }
+      gameState.recordModification
+    }
+  }
+
+  def doorRemove(i int) {
+    if edges[i] != null && doorExists(i) {
+      var cell = cells[i]
+      if cell == null {
+        return
+      }
+
+      cell.removeEdge(edges[i])
+      gameState.recordModification
+    }
+  }
+
+  def act(behavior DoorbellBehavior, kill bool) {
+    for i in 0..2 {
+      switch behavior {
+        case .OPEN {
+          doorRemove(i)
+        }
+        case .CLOSE {
+          doorPut(i, kill)
+        }
+        case .TOGGLE {
+          if doorExists(i) {
+            doorRemove(i)
+          } else {
+            doorPut(i, kill)
+          }
+        }
+      }
+    }
+  }
+}

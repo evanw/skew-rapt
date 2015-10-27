@@ -1,0 +1,38 @@
+const FREEFALL_ACCEL = -6
+
+class FreefallEnemy : Enemy {
+  var hitCircle Circle
+
+  def new(type EnemyType, center Vector, radius double, elasticity double) {
+    super(type, elasticity)
+    hitCircle = Circle.new(center, radius)
+  }
+
+  over getShape Shape {
+    return hitCircle
+  }
+
+  over draw(c Context) {
+    var pos = hitCircle.center
+    c.setFillColor(.BLACK)
+    c.beginPath
+    c.arc(pos.x, pos.y, hitCircle.radius, 0, TWOPI, false)
+    c.fill
+  }
+
+  # This moves the enemy and constrains its position
+  over move(seconds double) Vector {
+    return accelerate(Vector.new(0, FREEFALL_ACCEL), seconds)
+  }
+
+  # Enemy's reaction to a collision with the World
+  over reactToWorld(contact Contact) {
+    setDead(true)
+  }
+
+  # Enemy's reaction to a collision with a Player
+  over reactToPlayer(player Player) {
+    setDead(true)
+    player.setDead(true)
+  }
+}

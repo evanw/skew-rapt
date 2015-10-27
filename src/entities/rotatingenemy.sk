@@ -1,0 +1,16 @@
+# Abstract class representing enemies that may rotating, including seeking enemies.
+# These enemies are all circular.
+class RotatingEnemy : Enemy {
+  var hitCircle Circle
+  var heading double
+
+  def new(type EnemyType, center Vector, radius double, heading double, elasticity double) {
+    super(type, elasticity)
+    hitCircle = Circle.new(center, radius)
+    self.heading = heading
+  }
+
+  over getShape Shape {
+    return hitCircle
+  }
+}

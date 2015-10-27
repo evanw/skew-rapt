@@ -1,0 +1,193 @@
+class Headache : HoveringEnemy {
+  var target Player
+  var isAttached = false
+  var isTracking = false
+  var restingOffset = Vector.new(0, -10)
+  var chains List<HeadacheChain> = []
+
+  def new(center Vector, target Player) {
+    super(.HEADACHE, center, RADIUS, ELASTICITY)
+    self.target = target
+    for i in 0..4 {
+      chains.append(HeadacheChain.new(center))
+    }
+  }
+
+  over move(seconds double) Vector {
+    isTracking = false
+
+    # If the headache isn't yet attached to a Player
+    if !isAttached {
+      if target.isDead {
+        return Vector.new(0, 0)
+      }
+
+      var delta = target.getCenter - getCenter
+      if delta.lengthSquared < RANGE * RANGE && CollisionDetector.lineOfSightWorld(getCenter, target.getCenter) == null {
+        # Seeks the top of the Player, not the center
+        delta.y += 0.45
+
+        # Multiply be 3 so it attaches more easily if its close to a player
+        if delta.lengthSquared > SPEED * seconds * SPEED * seconds * 3 {
+          isTracking = true
+          delta.normalize
+          delta = delta * (SPEED * seconds)
+        } else {
+          isAttached = true
+        }
+
+        return delta
+      }
+    }
+
+    else {
+      # If a headache is attached to a dead player, it vanishes
+      if target.isDead {
+        setDead(true)
+      }
+
+      # Otherwise it moves with the player
+      var delta = target.getCenter + Vector.new(0, 0.45) - getCenter
+
+      # If player is crouching, adjust position
+      if target.getCrouch && target.isOnFloor {
+        delta.y -= 0.25
+        if target.facingRight { delta.x += 0.15 }
+        else { delta.x -= 0.15 }
+      }
+
+      hitCircle.moveBy(delta)
+    }
+
+    return Vector.new(0, 0)
+  }
+
+  over reactToWorld(contact Contact) {
+    # Nothing happens
+  }
+
+  over onDeath {
+    gameState.incrementStat(.ENEMY_DEATHS)
+
+    var position = getCenter
+
+    # body
+    var direction = Vector.fromAngle(randInRange(0, TWOPI)) * randInRange(0, 0.05)
+    var body = Particle.circle
+      .position(position)
+      .velocity(direction)
+      .radius(RADIUS)
+      .bounces(3)
+      .elasticity(0.5)
+      .decay(0.01)
+      .gravity(5)
+    if target == gameState.playerA {
+      body.color(1, 0, 0, 1)
+    } else {
+      body.color(0, 0, 1, 1)
+    }
+
+    # black lines out from body
+    for i in 0..50 {
+      var rotationAngle = randInRange(0, TWOPI)
+      var lineDirection = Vector.fromAngle(rotationAngle) * randInRange(3, 5)
+      Particle.line
+        .position(getCenter)
+        .velocity(lineDirection)
+        .angle(rotationAngle)
+        .radius(0.05)
+        .bounces(3)
+        .elasticity(0.5)
+        .decay(0.01)
+        .color(0, 0, 0, 1)
+    }
+  }
+
+  over reactToPlayer(player Player) {
+    if player == target {
+      player.disableJump
+    }
+
+    # The other player must jump on the headache from above to kill it
+    else if player.getVelocity.y < 0 && player.getCenter.y > getCenter.y {
+      setDead(true)
+    }
+  }
+
+  over afterTick(seconds double) {
+    var center = getCenter
+    for chain in chains {
+      chain.tick(seconds, center)
+    }
+  }
+
+  over draw(c Context) {
+    var center = getCenter
+
+    c.setStrokeColor(.BLACK)
+    for chain in chains {
+      chain.draw(c)
+    }
+
+    c.setFillColor(target == gameState.playerA ? .RED : .BLUE)
+    c.beginPath
+    c.arc(center.x, center.y, RADIUS * 0.75, 0, TWOPI, false)
+    c.fill
+    c.stroke
+  }
+}
+
+namespace Headache {
+  const RADIUS = 0.15
+  const ELASTICITY = 0.0
+  const SPEED = 3.0
+  const RANGE = 6.0
+  const CHAIN_RADIUS = RADIUS * 0.5
+}
+
+class HeadacheChain {
+  var points List<Vector> = []
+  var angle = Math.random * TWOPI
+  var point Vector
+
+  def new(center Vector) {
+    point = center * gameScale
+    point.x += (Math.random - 0.5) * Headache.RADIUS
+    point.y += (Math.random - 0.5) * Headache.RADIUS
+  }
+
+  def tick(seconds double, center Vector) {
+    const speed = 600
+
+    var dx = point.x - center.x * gameScale
+    var dy = point.y - center.y * gameScale
+    var percentFromCenter = Math.min(1, Math.sqrt(dx * dx + dy * dy) / Headache.CHAIN_RADIUS)
+
+    var angleFromCenter = Math.atan2(dy, dx) - angle
+    while angleFromCenter < -Math.PI { angleFromCenter += TWOPI }
+    while angleFromCenter > Math.PI { angleFromCenter -= TWOPI }
+    var percentHeading = (Math.PI - Math.abs(angleFromCenter)) / Math.PI
+
+    var randomOffset = speed * (Math.random - 0.5) * seconds
+    angle += randomOffset * (1 - percentFromCenter * 0.8) + percentHeading * percentFromCenter * (angleFromCenter > 0 ? -2 : 2)
+    angle -= Math.floor(angle / TWOPI) * TWOPI
+
+    point.x += speed * Math.cos(angle) * seconds
+    point.y += speed * Math.sin(angle) * seconds
+    points.append(Vector.new(point.x, point.y))
+    if points.count > 15 { points.removeFirst }
+  }
+
+  def draw(c Context) {
+    var n = points.count
+    for i in 1..n {
+      var a = points[i - 1]
+      var b = points[i]
+      c.setStrokeColor(Color.new(0, 0, 0, 255 * i / n))
+      c.beginPath
+      c.moveTo(a.x / gameScale, a.y / gameScale)
+      c.lineTo(b.x / gameScale, b.y / gameScale)
+      c.stroke
+    }
+  }
+}

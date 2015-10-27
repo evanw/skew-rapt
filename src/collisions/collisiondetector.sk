@@ -1,0 +1,885 @@
+namespace CollisionDetector {
+  const MAX_VELOCITY = 30.0
+  const MAX_COLLISIONS = 20
+  const MAX_EMERGENCY_ELASTICITY = 0.5 # if the collision detection system fails, what elasticity should we use?
+  const ON_MARGIN = 0.01
+  const MAX_LOS_DISTANCE = 25.0
+  const EMERGENCY_PUSH_DISTANCE = 0.1 # how far should we push something out if there's an emergency?
+
+  ########################################
+  # public functions
+  ########################################
+
+  # collisions
+  def collideEntityWorld(entity Entity, ref_deltaPosition Box<Vector>, ref_velocity Box<Vector>, elasticity double, emergency bool) Contact {
+    return collideShapeWorld(entity.getShape, ref_deltaPosition, ref_velocity, elasticity, entity.getColor, emergency)
+  }
+
+  def collideShapeWorld(shape Shape, ref_deltaPosition Box<Vector>, ref_velocity Box<Vector>, elasticity double, color EdgeColor, emergency bool) Contact {
+    # only chuck norris may divide by zero
+    if ref_deltaPosition.value.lengthSquared < 0.000000000001 {
+      ref_deltaPosition.value = Vector.new(0, 0)
+      return null
+    }
+
+    # clamp the velocity, so this won't blow up
+    # if we don't, the aabb will get too big.
+    if ref_velocity.value.lengthSquared > MAX_VELOCITY * MAX_VELOCITY {
+      ref_velocity.value = ref_velocity.value.unit * MAX_VELOCITY
+    }
+
+    # this stores the contact that happened last (if any)
+    # since this can hit multiple items in a single timestep
+    var lastContact Contact = null
+
+    var originalDelta = ref_deltaPosition.value
+    var originalVelocity = ref_velocity.value
+
+    # try this up to a certain number of times, if we get there we are PROBABLY stuck.
+    for i in 0..MAX_COLLISIONS {
+      # check all the edges in the expanded bounding box of the swept area
+      var newShape = shape.copy
+      newShape.moveBy(ref_deltaPosition.value)
+      var areaToCheck = shape.getAabb.union(newShape.getAabb)
+      var edges = gameState.world.getEdgesInAabb(areaToCheck, color)
+
+      # make a temporary new contact in case there is (another) collision
+      var newContact Contact = null
+
+      # see if this setting for deltaPosition causes a collision
+      for edge in edges {
+        var segmentContact = collideShapeSegment(shape, ref_deltaPosition.value, edge.segment)
+        if newContact == null || segmentContact != null && segmentContact.proportionOfDelta < newContact.proportionOfDelta {
+          newContact = segmentContact
+        }
+      }
+
+      # if we didn't hit anything this iteration, return our last hit
+      # on the first iteration, this means return NULL
+      if newContact == null {
+        emergencyCollideShapeWorld(shape, ref_deltaPosition, ref_velocity)
+        return lastContact
+      }
+
+      # modify the velocity to not be pointing into the edge
+      var velocityPerpendicular = ref_velocity.value.projectOntoAUnitVector(newContact.normal)
+      var velocityParallel = ref_velocity.value - velocityPerpendicular
+      ref_velocity.value = velocityParallel + velocityPerpendicular * -elasticity
+
+      # push the delta-position out of the edge
+      var deltaPerpendicular = ref_deltaPosition.value.projectOntoAUnitVector(newContact.normal)
+      var deltaParallel = ref_deltaPosition.value - deltaPerpendicular
+      var proportionLeft = 1 - newContact.proportionOfDelta
+      ref_deltaPosition.value = ref_deltaPosition.value * newContact.proportionOfDelta +
+        deltaPerpendicular * -elasticity*proportionLeft +
+        deltaParallel * proportionLeft +
+        newContact.normal * 0.0001
+
+      # the newly found contact is now the last one
+      lastContact = newContact
+    }
+
+    # if we are all looped out, take some emergency collision prevention measures.
+    ref_deltaPosition.value = Vector.new(0, 0)
+    ref_velocity.value = originalVelocity * -Math.min(elasticity, MAX_EMERGENCY_ELASTICITY)
+    if emergency { emergencyCollideShapeWorld(shape, Box<Vector>.new(originalDelta), ref_velocity) }
+    return lastContact
+  }
+
+  # overlaps
+  def overlapShapePlayers(shape Shape) List<Player> {
+    var players List<Player> = []
+    if overlapShapes(gameState.playerA.getShape, shape) {
+      players.append(gameState.playerA)
+    }
+    if overlapShapes(gameState.playerB.getShape, shape) {
+      players.append(gameState.playerB)
+    }
+    return players
+  }
+
+  def overlapPlayers bool {
+    return overlapShapes(gameState.playerA.getShape, gameState.playerB.getShape)
+  }
+
+  # on-edges
+  def onEntityWorld(entity Entity, edgeQuad EdgeQuad) {
+    penetrationEntityWorld(entity, edgeQuad)
+    edgeQuad.throwOutIfGreaterThan(ON_MARGIN)
+  }
+
+  # line of sight
+  def lineOfSightWorld(eye Vector, target Vector) Edge {
+    # if the target is too far, we can't see it
+    if (target - eye).lengthSquared > MAX_LOS_DISTANCE * MAX_LOS_DISTANCE {
+      return null
+    }
+
+    var edges = gameState.world.getEdgesInAabb(AABB.new(eye, target), .ENEMIES)
+    var minLosProportion = 1.1
+    var ref_edgeProportion = Box<double>.new(0) # throwaway
+    var ref_contactPoint = Box<Vector>.new(null) # throwaway
+    var firstEdge Edge = null
+
+    for edge in edges {
+      # this is only for edges that face towards the eye
+      if edge.segment.normal.dot(target - eye) >= 0 {
+        continue
+      }
+
+      # find the edge closest to the viewer
+      var ref_losProportion = Box<double>.new(0)
+
+      # if the LOS is not blocked by this edge, then ignore this edge
+      if !intersectSegments(Segment.new(eye, target), edge.segment, ref_losProportion, ref_edgeProportion, ref_contactPoint) {
+        continue
+      }
+
+      # if another edge was already closer, ignore this edge
+      if ref_losProportion.value >= minLosProportion {
+        continue
+      }
+
+      # otherwise this is the closest edge to the eye
+      minLosProportion = ref_losProportion.value
+      firstEdge = edge
+    }
+
+    return firstEdge
+  }
+
+  # puts the closest point in the world into worldpoint and the one on the shape
+  # to shapepoint, returns the distance to the closest point in the world to the shape
+  # will always find any point within radius of any point on the shape, may find ones farther out
+  # returns infinity if nothing was found within radius
+  def closestToEntityWorld(entity Entity, radius double, ref_shapePoint Box<Vector>, ref_worldPoint Box<Vector>) double {
+    var shape = entity.getShape
+    var boundingBox = shape.getAabb.expand(radius)
+    var edges = gameState.world.getEdgesInAabb(boundingBox, entity.getColor)
+
+    var distance = Math.INFINITY
+    for edge in edges {
+      var ref_thisShapePoint = Box<Vector>.new(null)
+      var ref_thisWorldPoint = Box<Vector>.new(null)
+      var thisDistance = closestToShapeSegment(shape, ref_thisShapePoint, ref_thisWorldPoint, edge.segment)
+      if thisDistance < distance {
+        distance = thisDistance
+        ref_shapePoint.value = ref_thisShapePoint.value
+        ref_worldPoint.value = ref_thisWorldPoint.value
+      }
+    }
+    return distance
+  }
+
+  def containsPointShape(point Vector, shape Shape) bool {
+    switch shape.getType {
+      case .CIRCLE {
+        var circle = shape as Circle
+        return (point - circle.center).lengthSquared < circle.radius * circle.radius
+      }
+
+      case .AABB {
+        var aabb = shape as AABB
+        return
+          point.x >= aabb.lowerLeft.x &&
+          point.x <= aabb.lowerLeft.x + aabb.size.x &&
+          point.y >= aabb.lowerLeft.y &&
+          point.y <= aabb.lowerLeft.y + aabb.size.y
+      }
+
+      case .POLYGON {
+        var polygon = shape as Polygon
+        var len = polygon.vertices.count
+
+        # Is this point outside this edge?  if so, it's not inside the polygon
+        for i in 0..len {
+          if polygon.segments[i].normal.dot(point - (polygon.vertices[i] + polygon.center)) > 0 {
+            return false
+          }
+        }
+
+        # if the point was inside all of the edges, then it's inside the polygon.
+        return true
+      }
+    }
+
+    assert(false)
+    return false
+  }
+
+  # intersect, disregards entity color
+  def intersectEntitySegment(entity Entity, segment Segment) bool {
+    return intersectShapeSegment(entity.getShape, segment)
+  }
+
+  ########################################
+  # private functions
+  ########################################
+
+  # INTERSECTIONS
+  def intersectSegments(segment0 Segment, segment1 Segment, ref_segmentProportion0 Box<double>, ref_segmentProportion1 Box<double>, ref_contactPoint Box<Vector>) bool {
+    var segStart0 = segment0.start
+    var segEnd0 = segment0.end
+    var segSize0 = segEnd0 - segStart0
+    var segStart1 = segment1.start
+    var segEnd1 = segment1.end
+    var segSize1 = segEnd1 - segStart1
+
+    # make sure these aren't parallel
+    if Math.abs(segSize0.dot(segSize1.flip)) < 0.000001 {
+      return false
+    }
+
+    # calculate the point of intersection...
+    ref_segmentProportion0.value =
+      ((segStart1.y - segStart0.y) * segSize1.x + (segStart0.x - segStart1.x) * segSize1.y) /
+      (segSize0.y  * segSize1.x - segSize1.y * segSize0.x)
+    ref_segmentProportion1.value =
+      ((segStart0.y - segStart1.y) * segSize0.x + (segStart1.x - segStart0.x) * segSize0.y) /
+      (segSize1.y * segSize0.x - segSize0.y  * segSize1.x)
+
+    # where do these actually meet?
+    ref_contactPoint.value = segStart0 + segSize0 * ref_segmentProportion0.value
+
+    # make sure the point of intersection is inside segment0
+    if ref_segmentProportion0.value < 0 || ref_segmentProportion0.value > 1 {
+      return false
+    }
+
+    # make sure the point of intersection is inside segment1
+    if ref_segmentProportion1.value < 0 || ref_segmentProportion1.value > 1 {
+      return false
+    }
+
+    # now that we've checked all this, the segments do intersect.
+    return true
+  }
+
+  def intersectCircleLine(circle Circle, line Segment, ref_lineProportion0 Box<double>, ref_lineProportion1 Box<double>) bool {
+    # variables taken from http:#local.wasp.uwa.edu.au/~pbourke/geometry/sphereline/
+    # thanks, internet!
+
+    var lineStart = line.start
+    var lineEnd = line.end
+    var lineSize = lineEnd - lineStart
+
+    # find quadratic equation variables
+    var a = lineSize.lengthSquared
+    var b = 2 * lineSize.dot(lineStart - circle.center)
+    var c = (lineStart - circle.center).lengthSquared - circle.radius * circle.radius
+
+    var insideSqrt = b * b - 4 * a * c
+    if insideSqrt < 0 {
+      return false
+    }
+
+    # calculate the point of intersection...
+    ref_lineProportion0.value = (-b - Math.sqrt(insideSqrt)) * 0.5 / a
+    ref_lineProportion1.value = (-b + Math.sqrt(insideSqrt)) * 0.5 / a
+
+    return true
+  }
+
+  def intersectShapeSegment(shape Shape, segment Segment) bool {
+    switch shape.getType {
+      case .CIRCLE { return intersectCircleSegment(shape as Circle, segment) }
+      case .AABB { return intersectPolygonSegment((shape as AABB).getPolygon, segment) }
+      case .POLYGON { return intersectPolygonSegment(shape as Polygon, segment) }
+    }
+    assert(false)
+    return false
+  }
+
+  def intersectCircleSegment(circle Circle, segment Segment) bool {
+    var ref_lineProportion0 = Box<double>.new(0)
+    var ref_lineProportion1 = Box<double>.new(0)
+
+    if !intersectCircleLine(circle, segment, ref_lineProportion0, ref_lineProportion1) {
+      return false
+    }
+
+    if ref_lineProportion0.value >= 0 && ref_lineProportion0.value <= 1 {
+      return true
+    }
+
+    return ref_lineProportion1.value >= 0 && ref_lineProportion1.value <= 1
+  }
+
+  def intersectPolygonSegment(polygon Polygon, segment Segment) bool {
+    # may fail on large enemies (if the segment is inside)
+
+    var ref_segmentProportion0 = Box<double>.new(0)
+    var ref_segmentProportion1 = Box<double>.new(0)
+    var ref_contactPoint = Box<Vector>.new(null)
+
+    for i in 0..polygon.vertices.count {
+      if intersectSegments(polygon.getSegment(i), segment, ref_segmentProportion0, ref_segmentProportion1, ref_contactPoint) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  # COLLISIONS
+  def collideShapeSegment(shape Shape, deltaPosition Vector, segment Segment) Contact {
+    var segmentNormal = segment.normal
+
+    # if the shape isn't traveling into this edge, then it can't collide with it
+    if deltaPosition.dot(segmentNormal) > 0.0 {
+      return null
+    }
+
+    switch shape.getType {
+      case .CIRCLE { return collideCircleSegment(shape as Circle, deltaPosition, segment) }
+      case .AABB { return collidePolygonSegment((shape as AABB).getPolygon, deltaPosition, segment) }
+      case .POLYGON { return collidePolygonSegment(shape as Polygon, deltaPosition, segment) }
+    }
+
+    assert(false)
+    return null
+  }
+
+  def collideCircleSegment(circle Circle, deltaPosition Vector, segment Segment) Contact {
+    var segmentNormal = segment.normal
+
+    # a directed radius towards the segment
+    var radiusToLine = segmentNormal * -circle.radius
+
+    # position of this circle after being moved
+    var newCircle = circle.offsetBy(deltaPosition)
+
+    # the point on the new circle farthest "in" this segment
+    var newCircleInnermost = newCircle.center + radiusToLine
+
+    # if the circle didn't end inside this segment, then it's not a collision.
+    var endedInside = segmentNormal.dot(newCircleInnermost - segment.start) < 0.001
+    if !endedInside {
+      return null
+    }
+
+    # the point on the circle farthest "in" this segment, before moving
+    var circleInnermost = newCircleInnermost - deltaPosition
+
+    # did this circle start completely outside this segment?
+    var startedOutside = segmentNormal.dot(circleInnermost - segment.start) > 0
+
+    # if the circle started outside this segment, then it might have hit the flat part of this segment
+    if startedOutside {
+      var ref_segmentProportion = Box<double>.new(0)
+      var ref_proportionOfDelta = Box<double>.new(0)
+      var ref_contactPoint = Box<Vector>.new(null)
+      if intersectSegments(segment, Segment.new(circleInnermost, newCircleInnermost), ref_segmentProportion, ref_proportionOfDelta, ref_contactPoint) {
+        # we can return this because the circle will always hit the flat part before it hits an end
+        return Contact.new(ref_contactPoint.value, segmentNormal, ref_proportionOfDelta.value)
+      }
+    }
+
+    # get the contacts that occurred when the edge of the circle hit an endpoint of this edge.
+    var startContact = collideCirclePoint(circle, deltaPosition, segment.start)
+    var endContact = collideCirclePoint(circle, deltaPosition, segment.end)
+
+    # select the collision that occurred first
+    if startContact == null && endContact == null { return null }
+    if startContact != null && endContact == null { return startContact }
+    if startContact == null && endContact != null { return endContact }
+    if startContact.proportionOfDelta < endContact.proportionOfDelta { return startContact }
+    return endContact
+  }
+
+  def collideCirclePoint(circle Circle, deltaPosition Vector, point Vector) Contact {
+    # deltaProportion1 is a throwaway
+    # we can only use segmentProportion0 because segmentProportion1 represents the intersection
+    # when the circle travels so that the point moves OUT of it, so we don't want to stop it from doing that.
+    var ref_deltaProportion0 = Box<double>.new(0)
+    var ref_deltaProportion1 = Box<double>.new(0)
+
+    # BUGFIX: shock hawks were disappearing on Traps when deltaPosition was very small, which caused
+    # us to try to solve a quadratic with a second order coefficient of zero and put NaNs everywhere
+    var delta = deltaPosition.length
+    if delta < 0.0000001 {
+      return null
+    }
+
+    # if these don't intersect at all, then forget about it.
+    if !intersectCircleLine(circle, Segment.new(point, point - deltaPosition), ref_deltaProportion0, ref_deltaProportion1) {
+      return null
+    }
+
+    # check that this actually happens inside of the segment.
+    if ref_deltaProportion0.value < 0 || ref_deltaProportion0.value > 1 {
+      return null
+    }
+
+    # find where the circle will be at the time of the collision
+    var circleCenterWhenCollides = circle.center + deltaPosition * ref_deltaProportion0.value
+
+    return Contact.new(point, (circleCenterWhenCollides - point).unit, ref_deltaProportion0.value)
+  }
+
+  def collidePolygonSegment(polygon Polygon, deltaPosition Vector, segment Segment) Contact {
+    # use these for storing parameters about the collision.
+    var ref_edgeProportion = Box<double>.new(0) # throwaway
+    var ref_deltaProportion = Box<double>.new(0) # how far into the timestep we get before colliding
+    var ref_contactPoint = Box<Vector>.new(null) # where we collide
+
+    # if this was touching the segment before, NO COLLISION
+    if intersectPolygonSegment(polygon, segment) {
+      return null
+    }
+
+    # the first instance of contact
+    var firstContact Contact = null
+
+    # for each side of the polygon, check the edge's endpoints for a collision
+    for i in 0..polygon.vertices.count {
+      var edgeEndpoints = [segment.start, segment.end]
+      var edgeMiddle = (segment.start + segment.end) / 2
+
+      # for each endpoint of the edge
+      for j in 0..2 {
+        var polygonSegment = polygon.getSegment(i)
+
+        # if the polygon is trying to pass out of the edge, no collision
+        if polygonSegment.normal.dot(edgeEndpoints[j] - edgeMiddle) > 0 {
+          continue
+        }
+
+        # if these don't intersect, ignore this edge
+        if !intersectSegments(polygonSegment, Segment.new(edgeEndpoints[j], edgeEndpoints[j] - deltaPosition), ref_edgeProportion, ref_deltaProportion, ref_contactPoint) {
+          continue
+        }
+
+        # if this contact is sooner, or if there wasn't one before, then we'll use this one
+        if firstContact == null || ref_deltaProportion.value < firstContact.proportionOfDelta {
+          firstContact = Contact.new(ref_contactPoint.value, -polygonSegment.normal, ref_deltaProportion.value)
+        }
+      }
+    }
+
+    # for each point of the polygon, check for a collision
+    for i in 0..polygon.vertices.count {
+      var vertex = polygon.getVertex(i)
+
+      # if these don't intersect, ignore this edge
+      if !intersectSegments(segment, Segment.new(vertex, vertex + deltaPosition), ref_edgeProportion, ref_deltaProportion, ref_contactPoint) {
+        continue
+      }
+
+      # if this contact is sooner, or if there wasn't one before, then we'll use this one
+      if firstContact == null || ref_deltaProportion.value < firstContact.proportionOfDelta {
+        firstContact = Contact.new(ref_contactPoint.value, segment.normal, ref_deltaProportion.value)
+      }
+    }
+
+    # return the first instance of contact
+    return firstContact
+  }
+
+  # EMERGENCY COLLISIONS, PREVENTS FALLING THROUGH FLOORS
+  def emergencyCollideShapeWorld(shape Shape, ref_deltaPosition Box<Vector>, ref_velocity Box<Vector>) {
+    var world = gameState.world
+
+    # do we need to push this shape anywhere?
+    var push = false
+
+    var newShape = shape.copy
+    newShape.moveBy(ref_deltaPosition.value)
+
+    if newShape.getAabb.getBottom < 0 { push = true }
+    if newShape.getAabb.getTop > world.height { push = true }
+    if newShape.getAabb.getLeft < 0 { push = true }
+    if newShape.getAabb.getRight > world.width { push = true }
+
+    if !push {
+      for cell in world.getCellsInAabb(newShape.getAabb) {
+        var cellShape = cell.getShape
+        if cellShape == null {
+          continue
+        }
+
+        if overlapShapes(newShape, cellShape) {
+          push = true
+          break
+        }
+      }
+    }
+
+    if push {
+      var minX = (Math.floor(newShape.getCenter.x) as int) - 3
+      var minY = (Math.floor(newShape.getCenter.y) as int) - 3
+      var maxX = (Math.floor(newShape.getCenter.x) as int) + 4
+      var maxY = (Math.floor(newShape.getCenter.y) as int) + 4
+
+      # find the closest open square, push toward that
+      var bestSafety = world.safety
+      for x in minX..maxX {
+        for y in minY..maxY {
+          var cell = world.getCell(x, y)
+
+          # if this cell doesn't exist or has a shape in it, not good to push towards.
+          if cell == null || cell.type != .EMPTY {
+            continue
+          }
+
+          # loop through centers of squares and replace if closer
+          var candidateSafety = Vector.new(x + 0.5, y + 0.5)
+          if (candidateSafety - newShape.getCenter).lengthSquared < (bestSafety - newShape.getCenter).lengthSquared {
+            bestSafety = candidateSafety
+          }
+        }
+      }
+
+      newShape.moveBy((bestSafety - newShape.getCenter).unit * EMERGENCY_PUSH_DISTANCE)
+      ref_deltaPosition.value = newShape.getCenter - shape.getCenter
+
+      # REMOVED TO PREVENT STOPPING WHEELIGATORS / THE PLAYER
+      # ref_velocity.value = Vector(0, 0)
+    }
+  }
+
+  # OVERLAPS
+  def overlapShapes(shape0 Shape, shape1 Shape) bool {
+    # convert AABBs to polygons
+    if shape0.getType == .AABB {
+      shape0 = (shape0 as AABB).getPolygon
+    }
+    if shape1.getType == .AABB {
+      shape1 = (shape1 as AABB).getPolygon
+    }
+
+    # swap the shapes so that they're in order
+    if shape0.getType > shape1.getType {
+      var temp = shape1
+      shape1 = shape0
+      shape0 = temp
+    }
+
+    var shape0Type = shape0.getType
+    var shape1Type = shape1.getType
+
+    # if they're both circles
+    if shape0Type == .CIRCLE && shape1Type == .CIRCLE {
+      return overlapCircles(shape0 as Circle, shape1 as Circle)
+    }
+
+    # if one is a circle and one is a polygon
+    if shape0Type == .CIRCLE && shape1Type == .POLYGON {
+      return overlapCirclePolygon(shape0 as Circle, shape1 as Polygon)
+    }
+
+    # if both are polygons
+    if shape0Type == .POLYGON && shape1Type == .POLYGON {
+      return overlapPolygons(shape0 as Polygon, shape1 as Polygon)
+    }
+
+    # we would only get here if we received an impossible pair of shapes.
+    assert(false)
+    return false
+  }
+
+  def overlapCircles(circle0 Circle, circle1 Circle) bool {
+    var radius = circle0.radius + circle1.radius
+    return (circle1.getCenter - circle0.getCenter).lengthSquared <= radius * radius
+  }
+
+  def overlapCirclePolygon(circle Circle, polygon Polygon) bool {
+    var len = polygon.vertices.count
+
+    # see if any point on the border of the the polygon is in the circle
+    for i in 0..len {
+      # if a segment of the polygon crosses the edge of the circle
+      if intersectCircleSegment(circle, polygon.getSegment(i)) {
+        return true
+      }
+
+      # if a vertex of the polygon is inside the circle
+      if (polygon.getVertex(i) - circle.center).lengthSquared < circle.radius * circle.radius {
+        return true
+      }
+    }
+
+    # otherwise, the circle could be completely inside the polygon
+    var point = circle.center
+    for i in 0..len {
+      # Is this point outside this edge? if so, it's not inside the polygon
+      if polygon.segments[i].normal.dot(point - (polygon.vertices[i] + polygon.center)) > 0 {
+        return false
+      }
+    }
+
+    # if the point was inside all of the edges, then it's inside the polygon
+    return true
+  }
+
+  def overlapPolygons(polygon0 Polygon, polygon1 Polygon) bool {
+    # see if any corner of polygon 0 is inside of polygon 1
+    for i in 0..polygon0.vertices.count {
+      if containsPointPolygon(polygon0.vertices[i] + polygon0.center, polygon1) {
+        return true
+      }
+    }
+
+    # see if any corner of polygon 1 is inside of polygon 0
+    for i in 0..polygon1.vertices.count {
+      if containsPointPolygon(polygon1.vertices[i] + polygon1.center, polygon0) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  # CONTAINS
+  def containsPointPolygon(point Vector, polygon Polygon) bool {
+    # Is this point outside this edge? if so, it's not inside the polygon
+    for i in 0..polygon.vertices.count {
+      if polygon.segments[i].normal.dot(point - (polygon.vertices[i] + polygon.center)) > 0 {
+        return false
+      }
+    }
+
+    # if the point was inside all of the edges, then it's inside the polygon
+    return true
+  }
+
+  # DISTANCES
+  def distanceShapeSegment(shape Shape, segment Segment) double {
+    # if the two are intersecting, the distance is obviously 0
+    if intersectShapeSegment(shape, segment) {
+      return 0
+    }
+
+    var ref_shapePoint = Box<Vector>.new(null)
+    var ref_worldPoint = Box<Vector>.new(null)
+    return closestToShapeSegment(shape, ref_shapePoint, ref_worldPoint, segment)
+  }
+
+  def distanceShapePoint(shape Shape, point Vector) double {
+    switch shape.getType {
+      case .CIRCLE { return distanceCirclePoint(shape as Circle, point) }
+      case .AABB { return distancePolygonPoint((shape as AABB).getPolygon, point) }
+      case .POLYGON { return distancePolygonPoint(shape as Polygon, point) }
+    }
+
+    assert(false)
+    return 0
+  }
+
+  def distanceCirclePoint(circle Circle, point Vector) double {
+    return Math.max(0, (circle.center - point).length - circle.radius)
+  }
+
+  def distancePolygonPoint(polygon Polygon, point Vector) double {
+    var ref_polygonEdgeProportion = Box<double>.new(0)
+    var ref_distanceProportion = Box<double>.new(0)
+    var ref_closestPointOnPolygonEdge = Box<Vector>.new(null) # throwaway
+    var distance = Math.INFINITY
+
+    # see how close each endpoint of the segment is to a point on the middle of a polygon edge
+    for i in 0..polygon.vertices.count {
+      var polygonSegment = polygon.getSegment(i)
+
+      # find where this segment endpoint projects onto the polygon edge
+      intersectSegments(polygonSegment, Segment.new(point, point + polygonSegment.normal), ref_polygonEdgeProportion, ref_distanceProportion, ref_closestPointOnPolygonEdge)
+
+      # if this projects beyond the endpoints of the polygon's edge, ignore it
+      if ref_polygonEdgeProportion.value < 0 || ref_polygonEdgeProportion.value > 1 {
+        continue
+      }
+
+      var thisDistance = Math.abs(ref_distanceProportion.value)
+      if thisDistance < distance {
+        distance = thisDistance
+      }
+    }
+
+    return distance
+  }
+
+  # CLOSEST TO
+  def closestToShapeSegment(shape Shape, ref_shapePoint Box<Vector>, ref_segmentPoint Box<Vector>, segment Segment) double {
+    switch shape.getType {
+      case .CIRCLE { return closestToCircleSegment(shape as Circle, ref_shapePoint, ref_segmentPoint, segment) }
+      case .AABB { return closestToPolygonSegment((shape as AABB).getPolygon, ref_shapePoint, ref_segmentPoint, segment) }
+      case .POLYGON { return closestToPolygonSegment(shape as Polygon, ref_shapePoint, ref_segmentPoint, segment) }
+    }
+
+    assert(false)
+    return 0
+  }
+
+  def closestToCircleSegment(circle Circle, ref_shapePoint Box<Vector>, ref_segmentPoint Box<Vector>, segment Segment) double {
+    # see if the closest point is in the middle of the segment
+    var ref_segmentProportion = Box<double>.new(0)
+    var ref_projectProportion = Box<double>.new(0)
+    intersectSegments(segment, Segment.new(circle.center, circle.center - segment.normal), ref_segmentProportion, ref_projectProportion, ref_segmentPoint)
+
+    # if the closest point is in the middle of the segment
+    if ref_segmentProportion.value >= 0 && ref_segmentProportion.value <= 1 {
+      # this returns the distance of the circle from the segment, along the normal
+      # since the normal is a unit vector and is also the shortest path, this works.
+      ref_shapePoint.value = circle.center - segment.normal * (ref_projectProportion.value > 0 ? circle.radius : -circle.radius)
+      return (ref_segmentPoint.value - circle.center).length - circle.radius
+    }
+
+    # otherwise, the closest point is one of the ends
+    var distanceSquaredToStart = (circle.center - segment.start).lengthSquared
+    var distanceSquaredToEnd = (circle.center - segment.end).lengthSquared
+
+    # if the start is closer, use it, otherwise, the end is closer
+    ref_segmentPoint.value = distanceSquaredToStart < distanceSquaredToEnd ? segment.start : segment.end
+
+    # this was WAY off in the version before the port, was relative to circle.center instead of absolute:
+    ref_shapePoint.value = circle.center + (ref_segmentPoint.value - circle.center).unit * circle.radius
+    return Math.sqrt(distanceSquaredToEnd) - circle.radius
+  }
+
+  def closestToPolygonSegment(polygon Polygon, ref_shapePoint Box<Vector>, ref_segmentPoint Box<Vector>, segment Segment) double {
+    var distance = Math.INFINITY
+    var thisDistance double
+
+    # check every pair of points for distance
+    for i in 0..polygon.vertices.count {
+      var polygonPoint = polygon.getVertex(i)
+
+      for j in 0..2 {
+        var thisSegmentPoint = j == 0 ? segment.start : segment.end
+        thisDistance = (polygonPoint - thisSegmentPoint).length
+
+        if thisDistance < distance {
+          distance = thisDistance
+          ref_segmentPoint.value = thisSegmentPoint
+          ref_shapePoint.value = polygonPoint
+        }
+      }
+    }
+
+    var ref_edgeProportion = Box<double>.new(0)
+    var ref_polygonDistanceProportion = Box<double>.new(0)
+    var ref_closestPoint = Box<Vector>.new(null)
+
+    # see how close each vertex of the polygon is to a point in the middle of the edge
+    for i in 0..polygon.vertices.count {
+      var polygonPoint = polygon.getVertex(i)
+
+      # find where this polygon vertex projects onto the edge
+      intersectSegments(segment, Segment.new(polygonPoint, polygonPoint - segment.normal), ref_edgeProportion, ref_polygonDistanceProportion, ref_closestPoint)
+
+      # if this projects beyond the endpoints of the edge, ignore it
+      if ref_edgeProportion.value < 0 || ref_edgeProportion.value > 1 {
+        continue
+      }
+
+      # the distance along the normal of the segment from the segment to this vertex of the polygon
+      thisDistance = Math.abs(ref_polygonDistanceProportion.value)
+
+      # if this is the closest we've found, use this
+      if thisDistance < distance {
+        distance = thisDistance
+        ref_segmentPoint.value = ref_closestPoint.value
+        ref_shapePoint.value = polygonPoint
+      }
+    }
+
+    var ref_polygonEdgeProportion = Box<double>.new(0)
+    var ref_distanceProportion = Box<double>.new(0)
+
+    # see how close each endpoint of the segment is to a point on the middle of a polygon edge
+    for i in 0..polygon.vertices.count {
+      var polygonSegment = polygon.getSegment(i)
+
+      for j in 0..2 {
+        var thisSegmentPoint = j == 0 ? segment.start : segment.end
+
+        # find where this segment endpoint projects onto the polygon edge
+        intersectSegments(polygonSegment, Segment.new(thisSegmentPoint, thisSegmentPoint + polygonSegment.normal), ref_polygonEdgeProportion, ref_distanceProportion, ref_closestPoint)
+
+        # if this projects beyond the endpoints of the polygon's edge, ignore it
+        if ref_polygonEdgeProportion.value < 0 || ref_polygonEdgeProportion.value > 1 {
+          continue
+        }
+
+        thisDistance = Math.abs(ref_distanceProportion.value)
+        if thisDistance < distance {
+          distance = thisDistance
+          ref_segmentPoint.value = thisSegmentPoint
+          ref_shapePoint.value = ref_closestPoint.value
+        }
+      }
+    }
+
+    return distance
+  }
+
+  # PENETRATIONS
+  def penetrationEntityWorld(entity Entity, edgeQuad EdgeQuad) {
+    edgeQuad.nullifyEdges
+    var shape = entity.getShape
+
+    for edge in gameState.world.getEdgesInAabb(shape.getAabb.expand(0.1), entity.getColor) {
+      # if the polygon isn't close to this segment, forget about it
+      var thisDistance = distanceShapeSegment(shape, edge.segment)
+      if thisDistance > 0.01 {
+        continue
+      }
+
+      # if the penetration is negative, ignore this segment
+      var thisPenetration = penetrationShapeSegment(shape, edge.segment)
+      if thisPenetration < 0 {
+        continue
+      }
+
+      edgeQuad.minimize(edge, thisPenetration)
+    }
+  }
+
+  def penetrationShapeSegment(shape Shape, segment Segment) double {
+    switch shape.getType {
+      case .CIRCLE { return penetrationCircleSegment(shape as Circle, segment) }
+      case .AABB { return penetrationPolygonSegment((shape as AABB).getPolygon, segment) }
+      case .POLYGON { return penetrationPolygonSegment(shape as Polygon, segment) }
+    }
+
+    assert(false)
+    return 0
+  }
+
+  def penetrationCircleSegment(circle Circle, segment Segment) double {
+    # a directed radius towards the segment
+    var radiusToLine = segment.normal * -circle.radius
+
+    # position on the circle closest to the inside of the line
+    var innermost = circle.center + radiusToLine
+
+    # map this onto the normal.
+    return segment.normal.dot(innermost - segment.start)
+  }
+
+  def penetrationPolygonSegment(polygon Polygon, segment Segment) double {
+    var innermost = Math.INFINITY
+    var ref_edgeProportion = Box<double>.new(0)
+    var ref_penetrationProportion = Box<double>.new(0)
+    var ref_closestPointOnSegment = Box<Vector>.new(null)
+
+    # check the penetration of each vertex of the polygon
+    for i in 0..polygon.vertices.count {
+      var vertex = polygon.getVertex(i)
+
+      # find where this polygon point projects onto the segment
+      intersectSegments(segment, Segment.new(vertex, vertex - segment.normal), ref_edgeProportion, ref_penetrationProportion, ref_closestPointOnSegment)
+
+      # if this point projects onto the segment outside of its endpoints, don't consider this point to be projected into this edge
+      if ref_edgeProportion.value < 0 || ref_edgeProportion.value > 1 {
+        continue
+      }
+
+      # the penetration of this vertex
+      if ref_penetrationProportion.value < innermost {
+        innermost = ref_penetrationProportion.value
+      }
+    }
+
+    return innermost
+  }
+}

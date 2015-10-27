@@ -1,0 +1,91 @@
+class RocketSpiderLegs : WalkingEnemy {
+  var body RocketSpider
+  var weakSpot Circle
+
+  def new(center Vector, angle double, body RocketSpider) {
+    super(.ROCKET_SPIDER_LEGS, center, RADIUS, ELASTICITY)
+    self.body = body
+    weakSpot = Circle.new(center, WEAK_SPOT_RADIUS)
+    if angle <= Math.PI * 0.5 || angle > Math.PI * 0.6666666 {
+      velocity = Vector.new(RocketSpider.SPEED, 0)
+    } else {
+      velocity = Vector.new(-RocketSpider.SPEED, 0)
+    }
+  }
+
+  # Returns true iff the Spider and player are on the same level floor, less than 1 cell horizontal distance away,
+  # and the spider is moving towards the player
+  def playerWillCollide(player Player) bool {
+    if player.isDead { return false }
+    var toReturn = Math.abs(player.getShape.getAabb.getBottom - hitCircle.getAabb.getBottom) < 0.01
+    var xRelative = player.getCenter.x - getCenter.x
+    toReturn = toReturn && Math.abs(xRelative) < 1 && velocity.x * xRelative > -0.01
+    return toReturn
+  }
+
+  # Walks in a straight line, but doesn't walk into the player
+  over move(seconds double) Vector {
+    if isOnFloor {
+      if playerWillCollide(gameState.playerA) || playerWillCollide(gameState.playerB) {
+        velocity.x *= -1
+      }
+      return velocity * seconds
+    }
+    return accelerate(Vector.new(0, FREEFALL_ACCEL), seconds)
+  }
+
+  # Acts like it has elasticity of FLOOR_ELASTICITY on floors, and maintains constant horizontal speed
+  over reactToWorld(contact Contact) {
+    if Edge.orientationFromNormal(contact.normal) == .FLOOR {
+      var perpendicular = velocity.projectOntoAUnitVector(contact.normal)
+      var parallel = velocity - perpendicular
+      velocity = parallel.unit * RocketSpider.SPEED + perpendicular * FLOOR_ELASTICITY
+    }
+  }
+
+  # The player can kill the Spider by running through its legs
+  over reactToPlayer(player Player) {
+    weakSpot.moveTo(hitCircle.getCenter)
+    if CollisionDetector.overlapShapePlayers(weakSpot).isEmpty {
+      setDead(true)
+    }
+  }
+
+  # The legs of the spider are responsible for killing the body
+  over setDead(isDead bool) {
+    body.setDead(isDead)
+    super(isDead)
+  }
+
+  over onDeath {
+    gameState.incrementStat(.ENEMY_DEATHS)
+
+    # make things that look like legs fly everywhere
+    var position = getCenter
+    for i in 0..16 {
+      var direction = Vector.fromAngle(randInRange(0, TWOPI)) * randInRange(0.5, 5)
+      var angle = randInRange(0, 2*Math.PI)
+      var angularVelocity = randInRange(-Math.PI, Math.PI)
+      Particle.line
+        .position(position)
+        .velocity(direction)
+        .radius(0.25)
+        .bounces(3)
+        .elasticity(0.5)
+        .decay(0.01)
+        .angle(angle)
+        .angularVelocity(angularVelocity)
+        .color(0, 0, 0, 1)
+    }
+  }
+
+  over draw(c Context) {
+  }
+}
+
+namespace RocketSpiderLegs {
+  const RADIUS = 0.45
+  const WEAK_SPOT_RADIUS = 0.2
+  const ELASTICITY = 1.0
+  const FLOOR_ELASTICITY = 0.1
+}

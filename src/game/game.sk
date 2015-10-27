@@ -1,0 +1,181 @@
+const gameScale = 50.0
+const GAME_WIN_TEXT = "You won!  Hit SPACE to play the next level or ESC for the level selection menu."
+const GOLDEN_COG_TEXT = "You earned a golden cog!"
+const SILVER_COG_TEXT = "You earned a silver cog!"
+const GAME_LOSS_TEXT = "You lost.  Hit SPACE to restart, or ESC to select a new level."
+const TEXT_BOX_X_MARGIN = 6.0
+const TEXT_BOX_Y_MARGIN = 6.0
+const SECONDS_BETWEEN_TICKS = 1.0 / 60
+const useFixedPhysicsTick = true
+
+class Game :: Screen {
+  var fps = 0.0
+  var fixedPhysicsTick = 0.0
+  var isDone = false
+  var camera Camera
+  var width int
+  var height int
+  var lastLevel = false # whether this game is the last level in the menu, this will be updated when the menu loads
+
+  def new {
+    gameState = GameState.new # Reset the global game state
+  }
+
+  def resize(w int, h int) {
+    width = w
+    height = h
+    camera = Camera.new(gameState.playerA, gameState.playerB, w / gameScale, h / gameScale)
+  }
+
+  def tick(seconds double) {
+    # when the screen isn't split, standing at the original spawn point:
+    # * Triple Threat
+    #   - variable physics tick: 30 FPS
+    #   - fixed physics tick: 25 FPS
+    # * Cube
+    #   - variable physics tick: 35 FPS
+    #   - fixed physics tick: 30 FPS
+    # * Coordinated Panic
+    #   - variable physics tick: 55 FPS
+    #   - fixed physics tick: 50 FPS
+    # overall, a fixed physics tick provides about 5 FPS drop but fixes a lot of
+    # gameplay issues (measurements above approximate but within about +/-1)
+
+    if useFixedPhysicsTick {
+      # fixed physics tick
+      var count = 0
+      fixedPhysicsTick += seconds
+      while count < 3 && fixedPhysicsTick >= 0 {
+        fixedPhysicsTick -= SECONDS_BETWEEN_TICKS
+        gameState.tick(SECONDS_BETWEEN_TICKS)
+        Particle.tickAll(SECONDS_BETWEEN_TICKS)
+        count++
+      }
+    } else {
+      # variable physics tick
+      gameState.tick(seconds)
+      Particle.tickAll(seconds)
+    }
+
+    # smooth the fps a bit
+    fps = lerp(fps, 1 / seconds, 0.05)
+
+    # handle winning the game
+    if !isDone && gameState.gameStatus != .IN_PLAY {
+      isDone = true
+      # if (gameState.gameStatus == .WON && onWin) {
+      #   onWin
+      # }
+    }
+  }
+
+  def render(c Context, center Vector, width double, height double) {
+    var halfWidth = width / 2
+    var halfHeight = height / 2
+    var xmin = center.x - halfWidth
+    var ymin = center.y - halfHeight
+    var xmax = center.x + halfWidth
+    var ymax = center.y + halfHeight
+    c.save
+    c.translate(-center.x, -center.y)
+    gameState.world.draw(c, xmin, ymin, xmax, ymax)
+    gameState.draw(c, xmin, ymin, xmax, ymax)
+    Particle.drawAll(c)
+    c.restore
+  }
+
+  # # Draw a text box, takes in an array of lines
+  # function drawTextBox(c, textArray, xCenter, yCenter, textSize) {
+  #   var numLines = textArray.length
+  #   if (numLines < 1) return
+
+  #   # Calculate the height of all lines and the widest line's width
+  #   c.font = textSize + 'px Arial, sans-serif'
+  #   var lineHeight = textSize + 2
+  #   var textHeight = lineHeight * numLines
+  #   var textWidth = -1
+  #   for (var i = 0 i < numLines ++i) {
+  #     var currWidth = c.measureText(textArray[i]).width
+  #     if (textWidth < currWidth) {
+  #       textWidth = currWidth
+  #     }
+  #   }
+
+  #   # Draw the box
+  #   c.fillStyle = '#BFBFBF'
+  #   c.strokeStyle = '#7F7F7F'
+  #   c.lineWidth = 1
+  #   var xLeft = xCenter - textWidth / 2 - TEXT_BOX_X_MARGIN
+  #   var yBottom = yCenter - textHeight / 2 - TEXT_BOX_Y_MARGIN
+  #   c.fillRect(xLeft, yBottom, textWidth + TEXT_BOX_X_MARGIN * 2, textHeight + TEXT_BOX_Y_MARGIN * 2)
+  #   c.strokeRect(xLeft, yBottom, textWidth + TEXT_BOX_X_MARGIN * 2, textHeight + TEXT_BOX_Y_MARGIN * 2)
+
+  #   # Draw the text
+  #   c.fillStyle = 'black'
+  #   c.textAlign = 'center'
+  #   # yCurr starts at the top, so subtract half of height of box
+  #   var yCurr = yCenter + 4 - (numLines - 1) * lineHeight / 2
+  #   for (var i = 0 i < numLines ++i) {
+  #     c.fillText(textArray[i], xCenter, yCurr)
+  #     yCurr += lineHeight
+  #   }
+  # }
+
+  def draw(c Context) {
+    # clear the background
+    c.setFillColor(.LIGHT_GRAY)
+    c.fillRect(0, 0, width, height)
+
+    # draw the game
+    c.save
+    c.translate(width / 2, height / 2)
+    c.scale(gameScale, -gameScale)
+    c.setStrokeThickness(1 / gameScale)
+    camera.draw(c, self)
+    c.restore
+
+    # if (gameState.gameStatus == .WON) {
+    #   # draw winning text
+    #   c.save
+    #   var gameWinText = (lastLevel ? "Congratulations, you beat the last level in this set!  Press SPACE or ESC to return to the level selection menu." : GAME_WIN_TEXT)
+    #   var cogsCollectedText = "Cogs Collected: " + gameState.stats[STAT_COGS_COLLECTED] + "/" + gameState.stats[STAT_NUM_COGS]
+    #   drawTextBox(c, [gameWinText, "", cogsCollectedText], width / 2, height / 2, 14)
+    #   c.restore
+    # } else if (gameState.gameStatus == .LOST) {
+    #   # draw losing text
+    #   c.save
+    #   drawTextBox(c, [GAME_LOSS_TEXT], width / 2, height / 2, 14)
+    #   c.restore
+    # }
+
+    # # draw the fps counter
+    # c.font = '10px Arial, sans-serif'
+    # c.fillStyle = 'black'
+    # var text = fps.toFixed(0) + ' FPS'
+    # c.fillText(text, width - 5 - c.measureText(text).width, height - 5)
+  }
+
+  def changeKeyValue(key Key, value bool) {
+    switch key {
+      case .KILL { gameState.killKey = value }
+
+      case .A_JUMP   { gameState.playerA.jumpKey = value }
+      case .A_CROUCH { gameState.playerA.crouchKey = value }
+      case .A_LEFT   { gameState.playerA.leftKey = value }
+      case .A_RIGHT  { gameState.playerA.rightKey = value }
+
+      case .B_JUMP   { gameState.playerB.jumpKey = value }
+      case .B_CROUCH { gameState.playerB.crouchKey = value }
+      case .B_LEFT   { gameState.playerB.leftKey = value }
+      case .B_RIGHT  { gameState.playerB.rightKey = value }
+    }
+  }
+
+  def keyDown(key Key) {
+    changeKeyValue(key, true)
+  }
+
+  def keyUp(key Key) {
+    changeKeyValue(key, false)
+  }
+}

@@ -1,0 +1,89 @@
+class BouncyRocketLauncher : SpawningEnemy {
+  var target Player
+  var canFire = true
+  var angle = 0.0
+  var bodySprite = Sprite.new
+
+  def new(center Vector, target Player) {
+    super(.BOUNCY_ROCKET_LAUNCHER, center, WIDTH, HEIGHT, 0, SHOOT_FREQ, 0)
+    self.target = target
+    bodySprite.drawCallback = target == gameState.playerA ? DrawBouncyRocketLauncher.new(.RED, .BLUE) : DrawBouncyRocketLauncher.new(.BLUE, .RED)
+  }
+
+  over canCollide bool {
+    return false
+  }
+
+  def rocketDestroyed {
+    canFire = true
+  }
+
+  over spawn bool {
+    if canFire && !target.isDead {
+      var targetDelta = target.getCenter - getCenter
+
+      # If Player is out of range or out of line of sight, don't launch anything
+      if targetDelta.length < RANGE && CollisionDetector.lineOfSightWorld(getCenter, target.getCenter) == null {
+        gameState.addEnemyWithCenter(BouncyRocket.new(getCenter, target, targetDelta.atan2, self), getCenter)
+        canFire = false
+        return true
+      }
+    }
+
+    return false
+  }
+
+  over afterTick(seconds double) {
+    var position = getCenter
+    if !target.isDead {
+      bodySprite.angle = (position - target.getCenter).atan2
+    }
+    bodySprite.offsetBeforeRotation = position
+  }
+
+  over draw(c Context) {
+    bodySprite.draw(c)
+  }
+}
+
+namespace BouncyRocketLauncher {
+  const WIDTH = 0.5
+  const HEIGHT = 0.5
+  const SHOOT_FREQ = 1.0
+  const RANGE = 8.0
+}
+
+class DrawBouncyRocketLauncher :: DrawCallback {
+  var colorA Color
+  var colorB Color
+
+  def draw(c Context) {
+    # End of gun
+    c.setStrokeColor(.BLACK)
+    c.beginPath
+    c.moveTo(0, -0.1)
+    c.lineTo(-0.3, -0.1)
+    c.lineTo(-0.3, 0.1)
+    c.lineTo(0, 0 + 0.1)
+    c.stroke
+
+    # Main body
+    c.setFillColor(colorA)
+    c.beginPath
+    c.arc(0, 0, 0.2, 0, TWOPI, false)
+    c.fill
+    c.setFillColor(colorB)
+    c.beginPath
+    c.arc(0, 0, 0.2, 1.65 * Math.PI, 2.35 * Math.PI, false)
+    c.fill
+
+    c.setStrokeColor(.BLACK)
+    c.beginPath
+    c.arc(0, 0, 0.2, 0, TWOPI, false)
+    c.stroke
+    c.beginPath
+    c.moveTo(0.1, -0.18)
+    c.lineTo(0.1, 0.18)
+    c.stroke
+  }
+}

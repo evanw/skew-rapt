@@ -1,0 +1,649 @@
+# constants
+const PAUSE_AFTER_DEATH = 2.0
+const RESPAWN_INTERPOLATION_TIME = 1.0
+const PAUSE_BEFORE_RESPAWN = 0.3
+const PLAYER_ACCELERATION = 50.0
+const PLAYER_MAX_SPEED = 8.0
+const PLAYER_WIDTH = 0.2
+const PLAYER_HEIGHT = 0.75
+const PLAYER_SUPER_JUMP_SPEED = 10.0
+const PLAYER_CLAMBER_ACCEL_X = 5.0
+const PLAYER_CLAMBER_ACCEL_Y = 10.0
+const PLAYER_DEATH_SPEED = 15.0
+const PLAYER_GRAVITY = 10.0
+const SLIDE_PARTICLE_TIMER_PERIOD = 1.0 / 5
+const SUPER_PARTICLE_TIMER_PERIOD = 1.0 / 40
+const JUMP_MIN_WAIT = 0.5
+const WALL_FRICTION = 0.1
+
+enum PlayerState {
+  FLOOR
+  AIR
+  CLAMBER
+  LEFT_WALL
+  RIGHT_WALL
+}
+
+const runningKeyframes = [
+  Keyframe.new(Vector.new(0, -5 / 50.0), [5, -10, 65, -55, 20, 40, -20, -30, -30, 10]).degreesToRadians,
+  Keyframe.new(Vector.new(0, -2 / 50.0), [5, -10, 35, -25, 0, 30, 18, -110, 0, 20]).degreesToRadians,
+  Keyframe.new(Vector.new(0, 0), [5, -10, 10, -30, -20, 20, 60, -100, 10, 30]).degreesToRadians,
+
+  Keyframe.new(Vector.new(0, -5 / 50.0), [5, -10, -20, -30, -30, 10, 65, -55, 20, 40]).degreesToRadians,
+  Keyframe.new(Vector.new(0, -2 / 50.0), [5, -10, 18, -110, 0, 20, 35, -25, 0, 30]).degreesToRadians,
+  Keyframe.new(Vector.new(0, 0), [5, -10, 60, -100, 10, 30, 10, -30, -20, 20]).degreesToRadians,
+]
+const jumpingKeyframes = [
+  Keyframe.new(Vector.new(0, 0), [0, -10, 150, -170, -40, 30, -30, -20, 20, 150]).degreesToRadians,
+  Keyframe.new(Vector.new(0, 0), [-20, 10, 60, -100, -80, 30, 30, -20, 30, 30]).degreesToRadians,
+]
+const wallSlidingKeyframe =
+  Keyframe.new(Vector.new((0.4 - PLAYER_WIDTH) / 2, 0), [0, -10, 150, -130, 140, 50, 50, -30, 50, 130]).degreesToRadians
+const crouchingKeyframe =
+  Keyframe.new(Vector.new(0, -0.2), [30, -30, 130, -110, -30, 40, 60, -120, 20, 20]).degreesToRadians
+const fallingKeyframes = [
+  Keyframe.new(Vector.new(0, 0), [-20, 5, 10, -30, -120, -30, 40, -20, 120, 30]).degreesToRadians,
+  Keyframe.new(Vector.new(0, 0), [-20, 5, 10, -30, -130, -60, 40, -20, 150, 50]).degreesToRadians,
+]
+const clamberingKeyframes = [
+  Keyframe.new(Vector.new((0.4 - PLAYER_WIDTH) / 2, 0), [0, -10, 150, -130, 140, 50, 50, -30, 50, 130]).degreesToRadians,
+  Keyframe.new(Vector.new(0, -0.2), [30, -30, 160, -180, -30, 40, 20, -10, 20, 20]).degreesToRadians,
+]
+
+enum PlayerSprite {
+  HEAD
+  TORSO
+  LEFT_UPPER_LEG
+  LEFT_LOWER_LEG
+  LEFT_UPPER_ARM
+  LEFT_LOWER_ARM
+  RIGHT_UPPER_LEG
+  RIGHT_LOWER_LEG
+  RIGHT_UPPER_ARM
+  RIGHT_LOWER_ARM
+  NUM_SPRITES
+}
+
+class DrawPlayerQuad :: DrawCallback {
+  var x1 double
+  var x2 double
+  var y1 double
+  var y2 double
+
+  def draw(c Context) {
+    c.beginPath
+    c.moveTo(x1 / 50, y1 / 50)
+    c.lineTo(x2 / 50, y2 / 50)
+    c.lineTo(-x2 / 50, y2 / 50)
+    c.lineTo(-x1 / 50, y1 / 50)
+    c.closePath
+    c.fill
+    c.stroke
+  }
+}
+
+class DrawPlayerHead : DrawPlayerQuad {
+  var y3 double
+
+  over draw(c Context) {
+    super(c)
+    c.beginPath
+    c.moveTo(0, y2 / 50)
+    c.lineTo(0, y3 / 50 - 0.02)
+    c.arc(0, y3 / 50, 0.02, -Math.PI / 2, Math.PI * 3 / 2, false)
+    c.stroke
+  }
+}
+
+def createPlayerSprites List<Sprite> {
+  var sprites List<Sprite> = []
+
+  for i in 0..PlayerSprite.NUM_SPRITES {
+    sprites.append(Sprite.new)
+  }
+
+  sprites[PlayerSprite.HEAD].drawCallback = DrawPlayerHead.new(2.5, 2.5, 1, 10, 18)
+  sprites[PlayerSprite.TORSO].drawCallback = DrawPlayerQuad.new(1.5, 1.5, 0, 15)
+  sprites[PlayerSprite.LEFT_UPPER_LEG].drawCallback = DrawPlayerQuad.new(1.5, 1, 0, -10)
+  sprites[PlayerSprite.LEFT_LOWER_LEG].drawCallback = DrawPlayerQuad.new(1, 1.5, 0, -10)
+  sprites[PlayerSprite.LEFT_UPPER_ARM].drawCallback = DrawPlayerQuad.new(1.5, 0.5, 0, -9)
+  sprites[PlayerSprite.LEFT_LOWER_ARM].drawCallback = DrawPlayerQuad.new(0.5, 1.5, 0, -10)
+  sprites[PlayerSprite.RIGHT_UPPER_LEG].drawCallback = sprites[PlayerSprite.LEFT_UPPER_LEG].drawCallback
+  sprites[PlayerSprite.RIGHT_LOWER_LEG].drawCallback = sprites[PlayerSprite.LEFT_LOWER_LEG].drawCallback
+  sprites[PlayerSprite.RIGHT_UPPER_ARM].drawCallback = sprites[PlayerSprite.LEFT_UPPER_ARM].drawCallback
+  sprites[PlayerSprite.RIGHT_LOWER_ARM].drawCallback = sprites[PlayerSprite.LEFT_LOWER_ARM].drawCallback
+
+  sprites[PlayerSprite.HEAD].setParent(sprites[PlayerSprite.TORSO])
+  sprites[PlayerSprite.LEFT_UPPER_ARM].setParent(sprites[PlayerSprite.TORSO])
+  sprites[PlayerSprite.RIGHT_UPPER_ARM].setParent(sprites[PlayerSprite.TORSO])
+  sprites[PlayerSprite.LEFT_LOWER_ARM].setParent(sprites[PlayerSprite.LEFT_UPPER_ARM])
+  sprites[PlayerSprite.RIGHT_LOWER_ARM].setParent(sprites[PlayerSprite.RIGHT_UPPER_ARM])
+  sprites[PlayerSprite.LEFT_UPPER_LEG].setParent(sprites[PlayerSprite.TORSO])
+  sprites[PlayerSprite.RIGHT_UPPER_LEG].setParent(sprites[PlayerSprite.TORSO])
+  sprites[PlayerSprite.LEFT_LOWER_LEG].setParent(sprites[PlayerSprite.LEFT_UPPER_LEG])
+  sprites[PlayerSprite.RIGHT_LOWER_LEG].setParent(sprites[PlayerSprite.RIGHT_UPPER_LEG])
+
+  sprites[PlayerSprite.HEAD].offsetBeforeRotation = Vector.new(0, 17 / 50.0)
+  sprites[PlayerSprite.LEFT_LOWER_LEG].offsetBeforeRotation = Vector.new(0, -10 / 50.0)
+  sprites[PlayerSprite.RIGHT_LOWER_LEG].offsetBeforeRotation = Vector.new(0, -10 / 50.0)
+  sprites[PlayerSprite.LEFT_UPPER_ARM].offsetBeforeRotation = Vector.new(0, 15 / 50.0)
+  sprites[PlayerSprite.RIGHT_UPPER_ARM].offsetBeforeRotation = Vector.new(0, 15 / 50.0)
+  sprites[PlayerSprite.LEFT_LOWER_ARM].offsetBeforeRotation = Vector.new(0, -9 / 50.0)
+  sprites[PlayerSprite.RIGHT_LOWER_ARM].offsetBeforeRotation = Vector.new(0, -9 / 50.0)
+
+  return sprites
+}
+
+class Player : Entity {
+  var jumpKey bool
+  var crouchKey bool
+  var leftKey bool
+  var rightKey bool
+  var polygon Polygon
+  var actualVelocity Vector
+  var boost double
+  var boostTime double
+  var boostMagnitude double
+  var onDiagLastTick bool
+  var jumpDisabled bool
+  var lastContact Contact
+  var state PlayerState
+  var prevState PlayerState
+  var sprites List<Sprite>
+  var facingRight bool
+  var runningFrame double
+  var fallingFrame double
+  var crouchTimer double
+  var timeSinceDeath double
+  var positionOfDeath Vector
+  var slideParticleTimer double
+  var superJumpParticleTimer double
+  var isSuperJumping bool
+  var color EdgeColor
+
+  def new(center Vector, color EdgeColor) {
+    super
+    reset(center, color)
+  }
+
+  # self is necessary because if we just set gameState.playerA = Player
+  # it'll wipe out everyone's references (for targets and so on)
+  def reset(center Vector, color EdgeColor) {
+    # keys (will be set automatically)
+    jumpKey = false
+    crouchKey = false
+    leftKey = false
+    rightKey = false
+
+    # the player is modeled as a triangle so it behaves like a
+    # box on top (so it has width) and behaves like a point on
+    # bottom (so it slides down when walking off ledges)
+    polygon = Polygon.new(center, [
+      Vector.new(PLAYER_WIDTH / 2, PLAYER_HEIGHT / 2),
+      Vector.new(-PLAYER_WIDTH / 2, PLAYER_HEIGHT / 2),
+      Vector.new(0, -PLAYER_HEIGHT / 2),
+    ])
+
+    # physics stuff
+    velocity = Vector.new(0, 0)
+    actualVelocity = Vector.new(0, 0)
+    boost = 0
+    boostTime = 0
+    boostMagnitude = 0
+    onDiagLastTick = false
+    jumpDisabled = false
+    lastContact = null
+    state = .FLOOR
+    prevState = .FLOOR
+
+    # animation stuff
+    sprites = createPlayerSprites
+    facingRight = false
+    runningFrame = 0
+    fallingFrame = 0
+    crouchTimer = 0
+    timeSinceDeath = 0
+    positionOfDeath = Vector.new(0, 0)
+    slideParticleTimer = 0
+    superJumpParticleTimer = 0
+
+    # other stuff
+    isSuperJumping = false
+    self.color = color
+  }
+
+  over getShape Shape { return polygon }
+  over getColor EdgeColor { return color }
+
+  # returns 0 for red player and 1 for blue player
+  def getPlayerIndex int {
+    return self == gameState.playerB ? 1 : 0
+  }
+
+  def getCrouch bool {
+    return crouchKey
+  }
+
+  def disableJump {
+    jumpDisabled = true
+  }
+
+  def addToVelocity(v Vector) {
+    velocity += v
+  }
+
+  def collideWithOtherPlayer {
+    # Do a co-op jump if a bunch of conditions hold: Both players on floor, the other player is crouching, and the two are colliding
+    var otherPlayer = gameState.getOtherPlayer(self)
+
+    if otherPlayer.crouchKey && !otherPlayer.isDead && state == .FLOOR && otherPlayer.state == .FLOOR {
+      var relativePos = getCenter - otherPlayer.getCenter
+
+      # Other player not moving, self player moving fast enough in x
+      if otherPlayer.velocity.lengthSquared < 0.01 && Math.abs(velocity.x) > 4 &&
+          # # TODO: HAD TO COMMENT THIS OUT BECAUSE Y VELOCITY IS BIGGER THAN 0.1, WHY IS THIS
+          # Math.abs(velocity.y) < 0.1 &&
+          Math.abs(relativePos.y) <= 0.01 && Math.abs(relativePos.x) < 0.1 {
+        velocity = Vector.new(0, PLAYER_SUPER_JUMP_SPEED)
+        isSuperJumping = true
+      }
+
+      # Change the spawn point if the players are within 1 unit and we have waited for at least 1 second
+      if relativePos.lengthSquared < 1 && crouchTimer > 1 && otherPlayer.crouchTimer >= crouchTimer {
+        gameState.setSpawnPoint(otherPlayer.getCenter)
+      }
+    }
+  }
+
+  over tick(seconds double) {
+    tickDeath(seconds)
+
+    if !isDead {
+      tickPhysics(seconds)
+      tickParticles(seconds)
+      tickAnimation(seconds)
+    }
+  }
+
+  def tickDeath(seconds double) {
+    # increment the death timer
+    if !isDead { timeSinceDeath = 0 }
+    else { timeSinceDeath += seconds }
+
+    # respawn as needed (but only if the other player isn't also dead)
+    if timeSinceDeath > PAUSE_AFTER_DEATH + RESPAWN_INTERPOLATION_TIME + PAUSE_BEFORE_RESPAWN && !gameState.getOtherPlayer(self).isDead {
+      setDead(false)
+    }
+
+    # if we're dead, interpolate back to the spawn point
+    if isDead {
+      # smoothly interpolate the position of death to the spawn point (speeding up at the beginning and slowing down at the end)
+      var destination = gameState.getSpawnPoint
+      var percent = (timeSinceDeath - PAUSE_AFTER_DEATH) / RESPAWN_INTERPOLATION_TIME
+      percent = Math.max(0, Math.min(1, percent))
+      percent = 0.5 - 0.5 * Math.cos(percent * Math.PI)
+      percent = 0.5 - 0.5 * Math.cos(percent * Math.PI)
+      setCenter(Vector.lerp(positionOfDeath, destination, percent))
+    }
+  }
+
+  def tickPhysics(seconds double) {
+    # if we hit something, stop the boost
+    if lastContact != null {
+      boostMagnitude = 0
+      boostTime = 0
+    }
+
+    # if we're not in a boost, decrease the boost magnitude
+    boostTime -= seconds
+    if boostTime < 0 {
+      boostMagnitude *= Math.pow(0.1, seconds)
+    }
+
+    # if we hit something or fall down, turn super jumping off
+    if lastContact != null || velocity.y < 0 {
+      isSuperJumping = false
+    }
+
+    # move the player horizontally
+    var moveLeft = leftKey && !rightKey && !crouchKey
+    var moveRight = rightKey && !leftKey && !crouchKey
+
+    # check for edge collisions.  sometimes if we hit an edge hard, we won't actually be within the margin
+    # but we will have a contact so we use both methods to detect an edge contact
+    CollisionDetector.onEntityWorld(self, edgeQuad)
+
+    var onGround  = edgeQuad.edge(.FLOOR)   != null || lastContact != null && Edge.orientationFromNormal(lastContact.normal) == .FLOOR
+    var onLeft    = edgeQuad.edge(.LEFT)    != null || lastContact != null && Edge.orientationFromNormal(lastContact.normal) == .LEFT
+    var onRight   = edgeQuad.edge(.RIGHT)   != null || lastContact != null && Edge.orientationFromNormal(lastContact.normal) == .RIGHT
+    var onCeiling = edgeQuad.edge(.CEILING) != null || lastContact != null && Edge.orientationFromNormal(lastContact.normal) == .CEILING
+
+    if !jumpDisabled && jumpKey {
+      # do a vertical jump
+      if onGround {
+        velocity.y = 6.5
+        boostTime = 0
+        boost = 0
+        boostMagnitude = 0
+
+        # boost away from the wall
+        if onLeft || onRight {
+          boostTime = 0.5
+          boost = 1
+          boostMagnitude = 0.5
+        }
+
+        # if it's on the right wall, just switch the boost direction
+        if onRight {
+          boost = -boost
+        }
+
+        # if the other player is super jumping, make us super jumping too!
+        if gameState.getOtherPlayer(self).isSuperJumping {
+          velocity.y = PLAYER_SUPER_JUMP_SPEED
+          isSuperJumping = true
+        }
+      }
+
+      # wall jump off the left wall
+      else if onLeft && !moveLeft && boostTime < 0 {
+        velocity = Vector.new(3.5, 6.5)
+        boostTime = JUMP_MIN_WAIT
+        boost = 2.5
+        boostMagnitude = 1
+      }
+
+      # wall jump off the right wall
+      else if onRight && !moveRight && boostTime < 0 {
+        velocity = Vector.new(-3.5, 6.5)
+        boostTime = JUMP_MIN_WAIT
+        boost = -2.5
+        boostMagnitude = 1
+      }
+    }
+
+    # kill the boost when we hit a ceiling
+    if onCeiling {
+      boostTime = 0
+      boost = 0
+      boostMagnitude = 0
+    }
+
+    # accelerate left and right (but not on ceilings, unless you are also on the ground for diagonal corners)
+    if onGround || !onCeiling {
+      if moveLeft {
+        velocity.x -= PLAYER_ACCELERATION * seconds
+        velocity.x = Math.max(velocity.x, -PLAYER_MAX_SPEED)
+      }
+      if moveRight {
+        velocity.x += PLAYER_ACCELERATION * seconds
+        velocity.x = Math.min(velocity.x, PLAYER_MAX_SPEED)
+      }
+    }
+
+    if edgeQuad.edge(.FLOOR) != null { state = .FLOOR }
+    else if edgeQuad.edge(.LEFT) != null { state = .LEFT_WALL }
+    else if edgeQuad.edge(.RIGHT) != null { state = .RIGHT_WALL }
+    else { state = .AIR }
+
+    var ref_closestPointWorld = Box<Vector>.new(null)
+    var ref_closestPointShape = Box<Vector>.new(null)
+    var closestPointDistance = CollisionDetector.closestToEntityWorld(self, 0.1, ref_closestPointShape, ref_closestPointWorld)
+
+    if state == .LEFT_WALL || state == .RIGHT_WALL {
+      # apply wall friction if the player is sliding down
+      if velocity.y < 0 {
+        velocity.y *= Math.pow(WALL_FRICTION, seconds)
+      }
+      if velocity.y > -0.5 && prevState == .CLAMBER {
+        # continue clambering to prevent getting stuck alternating between clambering and climbing
+        state = .CLAMBER
+      }
+    }
+
+    # start clambering if we're touching something below us, but not on a floor, wall, or ceiling
+    if state == .AIR && closestPointDistance < 0.01 && ref_closestPointShape.value.y > ref_closestPointWorld.value.y {
+      state = .CLAMBER
+    }
+
+    if state == .CLAMBER {
+      # clamber left
+      if leftKey && ref_closestPointWorld.value.x - polygon.getCenter.x < 0 {
+        velocity.x -= PLAYER_CLAMBER_ACCEL_X * seconds
+        velocity.y += PLAYER_CLAMBER_ACCEL_Y * seconds
+      }
+      # clamber right
+      if rightKey && ref_closestPointWorld.value.x - polygon.getCenter.x > 0 {
+        velocity.x += PLAYER_CLAMBER_ACCEL_X * seconds
+        velocity.y += PLAYER_CLAMBER_ACCEL_Y * seconds
+      }
+    }
+
+    crouchTimer += seconds
+    if !crouchKey || state != .FLOOR {
+      crouchTimer = 0
+    }
+
+    # If on a floor
+    if state == .FLOOR {
+      if crouchKey {
+        velocity *= Math.pow(0.000001, seconds)
+      } else {
+        velocity.y -= PLAYER_GRAVITY * seconds
+
+        # If running down on a diagonal floor, don't let the player run off
+        if !jumpKey && leftKey != rightKey && onDiagLastTick && edgeQuad.edge(.FLOOR).segment.normal.y < 0.99 {
+          velocity = velocity.projectOntoAUnitVector(edgeQuad.edge(.FLOOR).segment.normal.flip) * 0.99
+          velocity.y += 0.001
+        }
+      }
+    } else {
+      velocity.y -= PLAYER_GRAVITY * seconds
+    }
+
+    onDiagLastTick = state == .FLOOR && edgeQuad.edge(.FLOOR).segment.normal.y < 0.99
+    collideWithOtherPlayer
+
+    # boost the velocity in the x direction
+    actualVelocity = Vector.lerp(velocity, Vector.new(boost, velocity.y), boostMagnitude)
+    if boost != 0 && velocity.x / boost > 1 {
+      actualVelocity.x = velocity.x
+    }
+
+    var deltaPosition = actualVelocity * seconds
+
+    # Time independent version of multiplying by 0.909511377
+    velocity.x *= Math.pow(0.000076, seconds)
+
+    var ref_deltaPosition = Box<Vector>.new(deltaPosition)
+    var ref_velocity = Box<Vector>.new(velocity)
+    var newContact = CollisionDetector.collideEntityWorld(self, ref_deltaPosition, ref_velocity, 0, true)
+    deltaPosition = ref_deltaPosition.value
+    velocity = ref_velocity.value
+    lastContact = newContact
+
+    polygon.moveBy(deltaPosition)
+
+    if actualVelocity.y < -PLAYER_DEATH_SPEED && newContact != null && newContact.normal.y > 0.9 {
+      setDead(true)
+      onDeath
+    }
+
+    # After everything, reenable jump
+    prevState = state
+    jumpDisabled = false
+  }
+
+  over onDeath {
+    velocity = Vector.new(0, 0)
+    state = .AIR
+    boost = 0
+    boostMagnitude = 0
+    isSuperJumping = false
+
+    timeSinceDeath = 0
+    positionOfDeath = polygon.center
+
+    var isRed = gameState.playerA == self
+    var r = isRed ? 1 : 0.1
+    var g = 0.1
+    var b = isRed ? 0.1 : 1
+
+    for i in 0..500 {
+      var direction = Vector.fromAngle(lerp(0, TWOPI, Math.random))
+      direction = velocity + direction * lerp(1, 10, Math.random)
+      Particle.triangle
+        .position(polygon.center)
+        .velocity(direction)
+        .randomRadius(0.01, 0.1)
+        .randomBounces(0, 4)
+        .randomElasticity(0.05, 0.9)
+        .randomDecay(0.01, 0.02)
+        .randomExpand(1, 1.2)
+        .color(r / 2, g / 2, b / 2, 1)
+        .mixColor(r, g, b, 1)
+    }
+
+    gameState.incrementStat(.PLAYER_DEATHS)
+  }
+
+  def tickParticles(seconds double) {
+    # wall sliding particles
+    if state == .LEFT_WALL || state == .RIGHT_WALL {
+      var directionMultiplier = state == .RIGHT_WALL ? -1 : 1
+      var bounds = polygon.getAabb
+      var up = velocity.y
+
+      slideParticleTimer -= seconds * velocity.length
+      while slideParticleTimer < 0 {
+        slideParticleTimer += SLIDE_PARTICLE_TIMER_PERIOD
+
+        # distribute the particles along the side of the bounding box closest to the world (add 0.25 because the hands reach over the bounding box)
+        var position = Vector.new(
+          (state == .RIGHT_WALL) ? bounds.getRight : bounds.getLeft,
+          lerp(bounds.getBottom, bounds.getTop + 0.25, Math.random))
+        var velocity = Vector.new(
+          lerp(0, directionMultiplier, Math.random),
+          lerp(up, 2*up, Math.random))
+
+        Particle.circle
+          .color(0.3, 0.3, 0.3, 1)
+          .mixColor(0.5, 0.3, 0.3, 1)
+          .position(position)
+          .randomRadius(0.02, 0.04)
+          .randomDecay(0.01, 0.2)
+          .gravity(15)
+          .randomBounces(2, 4)
+          .velocity(velocity)
+          .randomElasticity(0.05, 0.1)
+      }
+    } else {
+      slideParticleTimer = 0
+    }
+
+    # super jump particles
+    if isSuperJumping {
+      superJumpParticleTimer -= seconds
+      while superJumpParticleTimer < 0 {
+        superJumpParticleTimer += SUPER_PARTICLE_TIMER_PERIOD
+        var position = polygon.center + Vector.new(randInRange(-0.2, 0.2), randInRange(-0.4, 0.4))
+        Particle.circle
+          .color(1, 1, 0, 1)
+          .mixColor(1, 1, 0, 0.75)
+          .position(position)
+          .randomRadius(0.03, 0.05)
+          .randomExpand(1.1, 1.2)
+          .randomDecay(0.1, 0.2)
+          .gravity(5)
+          .randomBounces(2, 3)
+      }
+    } else {
+      superJumpParticleTimer = 0
+    }
+  }
+
+  def tickAnimation(seconds double) {
+    var frame Keyframe
+    var slowDownScale = 1.0
+
+    runningFrame += seconds * Math.abs(actualVelocity.x) * Math.PI
+    fallingFrame += 8 * seconds
+
+    switch state {
+      case .LEFT_WALL {
+        facingRight = false
+        frame = wallSlidingKeyframe
+      }
+
+      case .RIGHT_WALL {
+        facingRight = true
+        frame = wallSlidingKeyframe
+      }
+
+      case .AIR {
+        if actualVelocity.x < 0 { facingRight = false }
+        else if actualVelocity.x > 0 { facingRight = true }
+
+        if actualVelocity.y > -PLAYER_DEATH_SPEED {
+          var percent = actualVelocity.y / 4
+          percent = (percent < 0) ? 1 / (1 - percent) - 1 : 1 - 1 / (1 + percent)
+          percent = 0.5 - 0.5 * percent
+          frame = Keyframe.tween(jumpingKeyframes[0], jumpingKeyframes[1], percent)
+        } else {
+          frame = Keyframe.loop(fallingKeyframes, fallingFrame)
+        }
+      }
+
+      case .CLAMBER {
+        var ref_shapePoint = Box<Vector>.new(null)
+        var ref_worldPoint = Box<Vector>.new(null)
+        CollisionDetector.closestToEntityWorld(self, 2, ref_shapePoint, ref_worldPoint)
+
+        # self should be from -0.5 to 0.5, so add 0.5 so it is from 0 to 1
+        var percent = (getCenter.y - ref_worldPoint.value.y) / PLAYER_HEIGHT
+        percent += 0.5
+
+        frame = Keyframe.tween(clamberingKeyframes[0], clamberingKeyframes[1], percent)
+        facingRight = ref_shapePoint.value.x < ref_worldPoint.value.x
+      }
+
+      case .FLOOR {
+        if crouchKey {
+          frame = crouchingKeyframe
+        } else {
+          frame = Keyframe.loop(runningKeyframes, runningFrame)
+          if actualVelocity.x < -0.1 { facingRight = false }
+          else if actualVelocity.x > 0.1 { facingRight = true }
+
+          slowDownScale = Math.abs(actualVelocity.x) / 5
+          if slowDownScale > 1 { slowDownScale = 1 }
+        }
+      }
+    }
+
+    for i in 0..sprites.count {
+      sprites[i].angle = frame.angles[i] * slowDownScale
+    }
+
+    var offset = frame.center * slowDownScale
+    sprites[PlayerSprite.TORSO].offsetBeforeRotation = Vector.new(getCenter.x + offset.x * (facingRight ? -1 : 1), getCenter.y + offset.y)
+    sprites[PlayerSprite.TORSO].flip = !facingRight
+  }
+
+  over draw(c Context) {
+    if !isDead {
+      if isSuperJumping {
+        var alpha = Math.max(0, Math.min(1, velocity.y / PLAYER_SUPER_JUMP_SPEED))
+        c.save
+        c.setStrokeColor(Color.new(255, 255, 255, (alpha * 255) as int))
+        c.setStrokeThickness(3 / gameScale)
+        sprites[PlayerSprite.TORSO].draw(c)
+        c.restore
+      }
+
+      c.setFillColor(getPlayerIndex == 0 ? .RED : .BLUE)
+      c.setStrokeColor(.BLACK)
+      sprites[PlayerSprite.TORSO].draw(c)
+    }
+  }
+}

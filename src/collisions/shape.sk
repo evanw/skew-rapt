@@ -1,0 +1,14 @@
+enum ShapeType {
+  AABB
+  CIRCLE
+  POLYGON
+}
+
+interface Shape {
+  def copy Shape
+  def getType ShapeType
+  def getAabb AABB
+  def getCenter Vector
+  def moveBy(delta Vector)
+  def moveTo(destination Vector)
+}

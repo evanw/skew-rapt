@@ -1,0 +1,34 @@
+class Entity {
+  var velocity = Vector.new(0, 0)
+
+  # private variable to tell whether this enemy will be removed at the end of all Entity ticks
+  var _isDead = false
+
+  def getVelocity Vector { return velocity }
+  def setVelocity(vel Vector) { velocity = vel }
+
+  def isDead bool { return _isDead }
+  def setDead(isDead bool) {
+    if _isDead == isDead { return }
+    _isDead = isDead
+    if _isDead { onDeath }
+    else { onRespawn }
+  }
+
+  def getColor EdgeColor
+  def getShape Shape
+
+  def getCenter Vector { return getShape.getCenter }
+  def setCenter(center Vector) { getShape.moveTo(center) }
+
+  def isOnFloor bool {
+    CollisionDetector.onEntityWorld(self, edgeQuad)
+    return edgeQuad.edge(.FLOOR) != null
+  }
+
+  def tick(seconds double)
+  def draw(context Context)
+
+  def onDeath {}
+  def onRespawn {}
+}

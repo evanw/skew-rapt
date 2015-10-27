@@ -1,0 +1,5 @@
+class Contact {
+  var contactPoint Vector
+  var normal Vector
+  var proportionOfDelta double
+}

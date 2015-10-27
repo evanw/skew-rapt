@@ -1,0 +1,72 @@
+class Bomber : SpawningEnemy {
+  def new(center Vector, angle double) {
+    super(.BOMBER, center, WIDTH, HEIGHT, ELASTICITY, BOMB_FREQUENCY, randInRange(0, BOMB_FREQUENCY))
+    if angle < Math.PI * 0.25 { setVelocity(Vector.new(SPEED, 0)) }
+    else if angle < Math.PI * 0.75 { setVelocity(Vector.new(0, SPEED)) }
+    else if angle < Math.PI * 1.25 { setVelocity(Vector.new(-SPEED, 0)) }
+    else if angle < Math.PI * 1.75 { setVelocity(Vector.new(0, -SPEED)) }
+    else { setVelocity(Vector.new(SPEED, 0)) }
+  }
+
+  over move(seconds double) Vector {
+    return velocity * seconds
+  }
+
+  over reactToPlayer(player Player) {
+    var relativePos = player.getCenter - getCenter
+
+    # If player jumps on top of the Bomber, it explodes
+    if relativePos.y > HEIGHT - 0.05 {
+      player.setVelocity(Vector.new(player.getVelocity.x, EXPLOSION_POWER))
+      setDead(true)
+    } else if player.isSuperJumping {
+      setDead(true)
+    } else {
+      player.setDead(true)
+    }
+  }
+
+  over spawn bool {
+    var spawnPoint = Vector.new(hitBox.lowerLeft.x + hitBox.getWidth * 0.5, hitBox.getBottom)
+    gameState.addEnemyWithCenter(Bomb.new(spawnPoint, Vector.new(0, Math.min(velocity.y, -0.3))), spawnPoint)
+    return true
+  }
+
+  over onDeath {
+    gameState.incrementStat(.ENEMY_DEATHS)
+    Bomb.explode(getShape.getCenter)
+  }
+
+  over draw(c Context) {
+    var pos = getCenter
+    c.setStrokeColor(.BLACK)
+    c.beginPath
+    c.moveTo(pos.x - 0.25, pos.y - 0.2)
+    c.lineTo(pos.x - 0.25, pos.y - 0.1)
+    c.lineTo(pos.x - 0.1, pos.y + 0.05)
+    c.lineTo(pos.x + 0.1, pos.y + 0.05)
+    c.lineTo(pos.x + 0.25, pos.y - 0.1)
+    c.lineTo(pos.x + 0.25, pos.y - 0.2)
+    c.arc(pos.x, pos.y - HEIGHT * 0.5, Bomb.RADIUS, 0, Math.PI, false)
+    c.lineTo(pos.x - 0.25, pos.y - 0.2)
+    c.moveTo(pos.x - 0.1, pos.y + 0.05)
+    c.lineTo(pos.x - 0.2, pos.y + 0.15)
+    c.moveTo(pos.x + 0.1, pos.y + 0.05)
+    c.lineTo(pos.x + 0.2, pos.y + 0.15)
+    c.stroke
+
+    c.setFillColor(.BLACK)
+    c.beginPath
+    c.arc(pos.x, pos.y - HEIGHT * 0.5, Bomb.RADIUS * getReloadPercentage, 0, TWOPI, false)
+    c.fill
+  }
+}
+
+namespace Bomber {
+  const WIDTH = 0.4
+  const HEIGHT = 0.4
+  const SPEED = 2.0
+  const BOMB_FREQUENCY = 1.0 # Frequency is in seconds
+  const ELASTICITY = 1.0
+  const EXPLOSION_POWER = 6.0
+}

@@ -1,0 +1,14 @@
+enum Key {
+  NONE
+  KILL
+
+  A_JUMP
+  A_CROUCH
+  A_LEFT
+  A_RIGHT
+
+  B_JUMP
+  B_CROUCH
+  B_LEFT
+  B_RIGHT
+}

@@ -1,0 +1,164 @@
+class Popper : WalkingEnemy {
+  var onFloor = false
+  var timeToNextJump = JUMP_DELAY
+  var sprites = createPopperSprites
+
+  def new(center Vector) {
+    super(.POPPER, center, RADIUS, ELASTICITY)
+  }
+
+  over move(seconds double) Vector {
+    # MIN_JUMP_Y <= velocity.y < MAX_JUMP_Y
+    # -(MAX_JUMP_Y - MIN_JUMP_Y) <= velocity.x <= (MAX_JUMP_Y - MIN_JUMP_Y)
+    if timeToNextJump <= 0 {
+      velocity.y = randInRange(MIN_JUMP_Y, MAX_JUMP_Y)
+      velocity.x = Math.random > 0.5 ? MAX_JUMP_Y - velocity.y : -MAX_JUMP_Y + velocity.y
+      timeToNextJump = JUMP_DELAY
+      onFloor = false
+    }
+
+    else if onFloor {
+      timeToNextJump = timeToNextJump - seconds
+    }
+
+    return accelerate(Vector.new(0, ACCEL), seconds)
+  }
+
+  over reactToWorld(contact Contact) {
+    if contact.normal.y >= 0.999 {
+      velocity.x = 0
+      velocity.y = 0
+      onFloor = true
+    }
+  }
+
+  over afterTick(seconds double) {
+    var position = getCenter
+    sprites[BODY].offsetBeforeRotation = position
+
+    # unfortunate hax because poppers bounce a little bit because of the way Enemy::Tick works
+    var ref_shapePoint = Box<Vector>.new(null)
+    var ref_worldPoint = Box<Vector>.new(null)
+    var distance = CollisionDetector.closestToEntityWorld(self, 2 * RADIUS, ref_shapePoint, ref_worldPoint)
+    var isOnFloor = distance < 3 * RADIUS && ref_shapePoint.value.eq(position + Vector.new(0, -RADIUS)) && (ref_worldPoint.value - ref_shapePoint.value).length < 0.1
+
+    var frame Keyframe
+    if !isOnFloor {
+      var percent = velocity.y * -0.25
+      percent = percent < 0 ? 1 / (1 - percent) - 1 : 1 - 1 / (1 + percent)
+      frame = Keyframe.tween(POPPER_JUMPING_KEYFRAME_0, POPPER_JUMPING_KEYFRAME_1, percent)
+    } else {
+      frame = POPPER_STANDING_KEYFRAME
+    }
+
+    sprites[BODY].offsetAfterRotation = frame.center
+    for i in 0..NUM_SPRITES {
+      sprites[i].angle = frame.angles[i]
+    }
+  }
+
+  over draw(c Context) {
+    sprites[BODY].draw(c)
+  }
+
+  over avoidsSpawn bool {
+    return true
+  }
+}
+
+namespace Popper {
+  const LEG_LENGTH = 0.3
+
+  const BODY = 0
+  const LEG1_UPPER = 1
+  const LEG2_UPPER = 2
+  const LEG3_UPPER = 3
+  const LEG4_UPPER = 4
+  const LEG1_LOWER = 5
+  const LEG2_LOWER = 6
+  const LEG3_LOWER = 7
+  const LEG4_LOWER = 8
+  const NUM_SPRITES = 9
+
+  const POPPER_STANDING_KEYFRAME = Keyframe.new(Vector.new(0, 0.1), [0, -80, -80, 80, 80, 100, 100, -100, -100]).degreesToRadians
+  const POPPER_JUMPING_KEYFRAME_0 = Keyframe.new(Vector.new(0, 0.2), [0, -40, -30, 30, 40, 40, 40, -40, -40]).degreesToRadians
+  const POPPER_JUMPING_KEYFRAME_1 = Keyframe.new(Vector.new(0, 0.1), [0, -80, -80, 80, 80, 100, 100, -100, -100]).degreesToRadians
+
+  const RADIUS = 0.4
+  const JUMP_DELAY = 0.5
+  const MIN_JUMP_Y = 2.5
+  const MAX_JUMP_Y = 6.5
+  const ELASTICITY = 0.5
+  const ACCEL = -6.0
+
+  def createPopperSprites List<Sprite> {
+    var sprites List<Sprite> = []
+
+    for i in 0..NUM_SPRITES {
+      sprites.append(Sprite.new)
+    }
+
+    sprites[BODY].drawCallback = DrawPopperBody.INSTANCE
+
+    for i in 0..4 {
+      sprites[LEG1_UPPER + i].drawCallback = DrawPopperLeg.INSTANCE
+      sprites[LEG1_LOWER + i].drawCallback = DrawPopperLeg.INSTANCE
+      sprites[LEG1_UPPER + i].setParent(sprites[BODY])
+      sprites[LEG1_LOWER + i].setParent(sprites[LEG1_UPPER + i])
+      sprites[LEG1_LOWER + i].offsetBeforeRotation = Vector.new(0, -LEG_LENGTH)
+    }
+
+    sprites[LEG1_UPPER].offsetBeforeRotation = Vector.new(-0.2, -0.2)
+    sprites[LEG2_UPPER].offsetBeforeRotation = Vector.new(-0.1, -0.2)
+    sprites[LEG3_UPPER].offsetBeforeRotation = Vector.new(0.1, -0.2)
+    sprites[LEG4_UPPER].offsetBeforeRotation = Vector.new(0.2, -0.2)
+
+    return sprites
+  }
+}
+
+class DrawPopperBody :: DrawCallback {
+  def draw(c Context) {
+    c.setStrokeColor(.BLACK)
+    c.setFillColor(.BLACK)
+    c.beginPath
+    c.moveTo(0.2, -0.2)
+    c.lineTo(-0.2, -0.2)
+    c.lineTo(-0.3, 0)
+    c.lineTo(-0.2, 0.2)
+    c.lineTo(0.2, 0.2)
+    c.lineTo(0.3, 0)
+    c.lineTo(0.2, -0.2)
+    c.moveTo(0.15, -0.15)
+    c.lineTo(-0.15, -0.15)
+    c.lineTo(-0.23, 0)
+    c.lineTo(-0.15, 0.15)
+    c.lineTo(0.15, 0.15)
+    c.lineTo(0.23, 0)
+    c.lineTo(0.15, -0.15)
+    c.stroke
+
+    c.beginPath
+    c.arc(-0.075, 0, 0.04, 0, TWOPI, false)
+    c.arc(0.075, 0, 0.04, 0, TWOPI, false)
+    c.fill
+  }
+}
+
+namespace DrawPopperBody {
+  const INSTANCE = new
+}
+
+class DrawPopperLeg :: DrawCallback {
+  def draw(c Context) {
+    c.setStrokeColor(.BLACK)
+    c.beginPath
+    c.moveTo(0, 0)
+    c.lineTo(0, -Popper.LEG_LENGTH)
+    c.stroke
+  }
+}
+
+namespace DrawPopperLeg {
+  const INSTANCE = new
+}

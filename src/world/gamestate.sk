@@ -1,0 +1,327 @@
+enum GameStatus {
+  IN_PLAY
+  WON
+  LOST
+}
+
+enum StatIndex {
+  PLAYER_DEATHS
+  ENEMY_DEATHS
+  COGS_COLLECTED
+  NUM_COGS
+}
+
+class GameState {
+  var world = World.new(50, 50, Vector.new(0, 0), Vector.new(0, 0))
+
+  # Player color must be RED or BLUE to support proper collisions with doors!
+  var playerA Player
+  var playerB Player
+  var spawnPointParticleTimer = 0.0
+  var spawnPointOffset = Vector.new(0, 0)
+  var enemies List<Enemy> = []
+  var doors List<Door> = []
+  var timeSinceStart = 0.0
+
+  # keys (will be set automatically)
+  var killKey = false
+
+  # if you need to tell if the world has been modified (door has been opened/closed), just watch
+  # for changes to this variable, which can be incremented by gameState.recordModification
+  var modificationCount = 0
+
+  var gameStatus GameStatus = .IN_PLAY
+  var stats = [0, 0, 0, 0]
+
+  # bounding rectangle around all pixels currently being drawn to (also includes 2 cells of padding,
+  # so just check that the enemy center is within these bounds, don't bother about adding the radius)
+  var drawMinX = 0.0
+  var drawMinY = 0.0
+  var drawMaxX = 0.0
+  var drawMaxY = 0.0
+
+  def new {
+    playerA = Player.new(world.spawnPoint, .RED)
+    playerB = Player.new(world.spawnPoint, .BLUE)
+  }
+
+  def recordModification {
+    modificationCount++
+  }
+
+  def getPlayer(i int) Player {
+    return i == 0 ? playerA : playerB
+  }
+
+  def getOtherPlayer(player Player) Player {
+    return player == playerA ? playerB : playerA
+  }
+
+  def getSpawnPoint Vector {
+    return world.spawnPoint
+  }
+
+  def setSpawnPoint(point Vector) {
+    world.spawnPoint = point.clone
+
+    # offset to keep spawn point from drawing below ground
+    spawnPointOffset.y = 0.125
+
+    # prevents slipping?
+    world.spawnPoint.y += 0.01
+  }
+
+  def gameWon bool {
+    var goal = world.goal
+    var atGoalA = !playerA.isDead && Math.abs(playerA.getCenter.x - goal.x) < 0.4 && Math.abs(playerA.getCenter.y - goal.y) < 0.4
+    var atGoalB = !playerB.isDead && Math.abs(playerB.getCenter.x - goal.x) < 0.4 && Math.abs(playerB.getCenter.y - goal.y) < 0.4
+    return atGoalA && atGoalB
+  }
+
+  def gameLost bool {
+    return playerA.isDead && playerB.isDead
+  }
+
+  def incrementStat(stat StatIndex) {
+    stats[stat] = stats[stat] + 1
+  }
+
+  def addEnemy(enemy Enemy) {
+    # If adding at the start of the game, start at its own center
+    addEnemyWithCenter(enemy, enemy.getShape.getCenter)
+  }
+
+  def addEnemyWithCenter(enemy Enemy, spawnerPosition Vector) {
+    # rewind the enemy back to the spawner's center
+    enemy.getShape.moveTo(spawnerPosition)
+
+    var ref_deltaPosition = Box<Vector>.new(enemy.getShape.getCenter - spawnerPosition)
+    var ref_velocity = Box<Vector>.new(enemy.getVelocity)
+
+    # do collision detection and push the enemy backwards if it would hit any walls
+    CollisionDetector.collideEntityWorld(enemy, ref_deltaPosition, ref_velocity, enemy.getElasticity, true)
+
+    # put the velocity back into the enemy
+    enemy.setVelocity(ref_velocity.value)
+
+    # move the spawned enemy as far out from the spawner as we can
+    enemy.getShape.moveBy(ref_deltaPosition.value)
+
+    # now we can add the enemy to the list
+    enemies.append(enemy)
+  }
+
+  def clearDoors {
+    doors = []
+  }
+
+  def addDoor(startX int, startY int, endX int, endY int, type DoorType, color EdgeColor, startsOpen bool) {
+    var cell1 Cell
+    var cell2 Cell
+    var valid = true
+
+    # left wall
+    if startY + 1 == endY && startX == endX {
+      cell1 = world.getCell(startX, startY)
+      cell2 = world.getCell(startX - 1, startY)
+      if cell1 == null || cell2 == null || cell1.type.isLeftWallOccupied || cell2.type.isRightWallOccupied {
+        valid = false
+      }
+    }
+
+    # right wall
+    else if startY - 1 == endY && startX == endX {
+      cell1 = world.getCell(startX - 1, endY)
+      cell2 = world.getCell(startX, endY)
+      if cell1 == null || cell2 == null || cell1.type.isRightWallOccupied || cell2.type.isLeftWallOccupied {
+        valid = false
+      }
+    }
+
+    # ceiling
+    else if startX + 1 == endX && startY == endY {
+      cell1 = world.getCell(startX, startY - 1)
+      cell2 = world.getCell(startX, startY)
+      if cell1 == null || cell2 == null || cell1.type.isCeilingOccupied || cell2.type.isFloorOccupied {
+        valid = false
+      }
+    }
+
+    # floor
+    else if startX - 1 == endX && startY == endY {
+      cell1 = world.getCell(endX, startY)
+      cell2 = world.getCell(endX, startY - 1)
+      if cell1 == null || cell2 == null || cell1.type.isFloorOccupied || cell2.type.isCeilingOccupied {
+        valid = false
+      }
+    }
+
+    # diagonal
+    else {
+      var x = startX < endX ? startX : endX
+      var y = startY < endY ? startY : endY
+      cell1 = world.getCell(x, y)
+      cell2 = world.getCell(x, y)
+      if (startX < endX) == (startY < endY) {
+        if cell1 == null || cell1.type.isPosDiagOccupied {
+          valid = false
+        }
+      } else if cell1 == null || cell1.type.isNegDiagOccupied {
+        valid = false
+      }
+    }
+
+    var start = Vector.new(startX, startY)
+    var end = Vector.new(endX, endY)
+    var door =
+      # Make a dummy door that doesn't do anything
+      !valid ? Door.new(null, null, null, null)
+      : type == .ONE_WAY ? Door.new(Edge.new(start, end, color), null, cell1, null)
+      : Door.new(Edge.new(start, end, color), Edge.new(end, start, color), cell1, cell2)
+    doors.append(door)
+    if !startsOpen {
+      door.act(.CLOSE, true)
+    }
+  }
+
+  def getDoor(doorIndex int) Door {
+     return doors[doorIndex]
+  }
+
+  # Kill all entities that intersect a given edge
+  def killAll(edge Edge) {
+    for i in 0..2 {
+      if CollisionDetector.intersectEntitySegment(getPlayer(i), edge.segment) {
+        getPlayer(i).setDead(true)
+      }
+    }
+
+    for enemy in enemies {
+      if enemy.canCollide && CollisionDetector.intersectEntitySegment(enemy, edge.segment) {
+        enemy.setDead(true)
+      }
+    }
+  }
+
+  def tick(seconds double) {
+    if gameStatus == .WON || gameWon {
+      gameStatus = .WON
+    } else if gameStatus == .LOST || gameLost {
+      gameStatus = .LOST
+    }
+
+    timeSinceStart += seconds
+
+    if killKey {
+      playerA.setDead(true)
+      playerB.setDead(true)
+    }
+    playerA.tick(seconds)
+    playerB.tick(seconds)
+    for enemy in enemies {
+      enemy.tick(seconds)
+    }
+    enemies.removeIf(enemy => enemy.isDead)
+
+    spawnPointParticleTimer -= seconds
+    if spawnPointParticleTimer <= 0 {
+      var position = world.spawnPoint - Vector.new(0, 0.25)
+      Particle.circle
+        .position(position)
+        .velocity(Vector.new(randInRange(-0.3, 0.3), 0.3))
+        .randomRadius(0.03, 0.05)
+        .bounces(0)
+        .randomDecay(0.1, 0.2)
+        .color(1, 1, 1, 1)
+        .gravity(-5)
+      spawnPointParticleTimer += SPAWN_POINT_PARTICLE_FREQ
+    }
+  }
+
+  def draw(c Context, xmin double, ymin double, xmax double, ymax double) {
+    # no enemy or particle is larger than two cells wide
+    drawMinX = xmin - 2
+    drawMinY = ymin - 2
+    drawMaxX = xmax + 2
+    drawMaxY = ymax + 2
+
+    # spawn point and goal
+    var spawnPoint = world.spawnPoint + spawnPointOffset
+    var goal = world.goal
+    if spawnPoint.x >= drawMinX && spawnPoint.y >= drawMinY && spawnPoint.x <= drawMaxX && spawnPoint.y <= drawMaxY {
+      drawSpawnPoint(c, spawnPoint)
+    }
+    if goal.x >= drawMinX && goal.y >= drawMinY && goal.x <= drawMaxX && goal.y <= drawMaxY {
+      drawGoal(c, goal, timeSinceStart)
+    }
+
+    # players
+    playerA.draw(c)
+    playerB.draw(c)
+
+    # enemies
+    for enemy in enemies {
+      var center = enemy.getCenter
+      if center.x >= drawMinX && center.y >= drawMinY && center.x <= drawMaxX && center.y <= drawMaxY {
+        enemy.draw(c)
+      }
+    }
+  }
+}
+
+namespace GameState {
+  const SPAWN_POINT_PARTICLE_FREQ = 0.3
+
+  def drawSpawnPoint(c Context, point Vector) {
+    c.setFillColor(.TRANSPARENT_WHITE)
+    c.setStrokeColor(.TRANSPARENT_WHITE)
+    c.beginPath
+    c.arc(point.x, point.y, 1, 0, TWOPI, false)
+    c.stroke
+    c.fill
+
+    # var gradient = c.createLinearGradient(0, point.y - 0.4, 0, point.y + 0.6)
+    # gradient.addColorStop(0, 'rgba(255, 255, 255, 0.75)')
+    # gradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
+    # c.fillStyle = gradient
+    c.beginPath
+    c.lineTo(point.x - 0.35, point.y + 0.6)
+    c.lineTo(point.x - 0.1, point.y - 0.4)
+    c.lineTo(point.x + 0.1, point.y - 0.4)
+    c.lineTo(point.x + 0.35, point.y + 0.6)
+    c.fill
+
+    c.setFillColor(.BLACK)
+    c.beginPath
+    c.moveTo(point.x - 0.1, point.y - 0.45)
+    c.lineTo(point.x - 0.1, point.y - 0.4)
+    c.lineTo(point.x + 0.1, point.y - 0.4)
+    c.lineTo(point.x + 0.1, point.y - 0.45)
+    c.arc(point.x, point.y - 0.45, 0.2, 0, Math.PI, true)
+    c.fill
+  }
+
+  def drawGoal(c Context, point Vector, time double) {
+    var percent = time - Math.floor(time)
+    percent = 1 - percent
+    percent = (percent - Math.pow(percent, 6)) * 1.72
+    percent = 1 - percent
+
+    c.setFillColor(.BLACK)
+    for i in 0..4 {
+      var angle = i * (TWOPI / 4)
+      var s = Math.sin(angle)
+      var csn = Math.cos(angle)
+      var radius = 0.45 - percent * 0.25
+      var size = 0.15
+      c.beginPath
+      c.moveTo(point.x + csn * radius - s * size, point.y + s * radius + csn * size)
+      c.lineTo(point.x + csn * radius + s * size, point.y + s * radius - csn * size)
+      c.lineTo(point.x + csn * (radius - size), point.y + s * (radius - size))
+      c.fill
+    }
+  }
+}
+
+# global variable for game state
+var gameState GameState

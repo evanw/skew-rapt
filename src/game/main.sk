@@ -1,0 +1,227 @@
+namespace browser {
+  const document = dynamic.document
+
+  class CanvasContext :: Context {
+    var element = document.createElement("canvas")
+    var wrapped dynamic
+
+    def new(width int, height int) {
+      element.width = width
+      element.height = height
+      wrapped = element.getContext("2d")
+    }
+
+    def save {
+      wrapped.save()
+    }
+
+    def restore {
+      wrapped.restore()
+    }
+
+    def scale(x double, y double) {
+      wrapped.scale(x, y)
+    }
+
+    def rotate(radians double) {
+      wrapped.rotate(radians)
+    }
+
+    def translate(x double, y double) {
+      wrapped.translate(x, y)
+    }
+
+    def setStrokeThickness(thickness double) {
+      wrapped.lineWidth = thickness
+    }
+
+    def setStrokeColor(color Color) {
+      wrapped.strokeStyle = _colorToCSS(color)
+    }
+
+    def setFillColor(color Color) {
+      wrapped.fillStyle = _colorToCSS(color)
+    }
+
+    def beginPath {
+      wrapped.beginPath()
+    }
+
+    def moveTo(x double, y double) {
+      wrapped.moveTo(x, y)
+    }
+
+    def lineTo(x double, y double) {
+      wrapped.lineTo(x, y)
+    }
+
+    def closePath {
+      wrapped.closePath()
+    }
+
+    def clip {
+      wrapped.clip()
+    }
+
+    def fill {
+      wrapped.fill()
+    }
+
+    def stroke {
+      wrapped.stroke()
+    }
+
+    def fillRect(x double, y double, width double, height double) {
+      wrapped.fillRect(x, y, width, height)
+    }
+
+    def strokeRect(x double, y double, width double, height double) {
+      wrapped.strokeRect(x, y, width, height)
+    }
+
+    def arc(x double, y double, r double, startAngle double, endAngle double, anticlockwise bool) {
+      wrapped.arc(x, y, r, startAngle, endAngle, anticlockwise)
+    }
+  }
+
+  namespace CanvasContext {
+    def _colorToCSS(color Color) string {
+      return "rgba(" + color.red.toString + "," + color.green.toString + "," + color.blue.toString + "," + (color.alpha / 255.0).toString + ")"
+    }
+  }
+
+  const WIDTH = 800
+  const HEIGHT = 600
+  const levels = [
+    "Better Keep Moving.json",
+    "Bomberland.json",
+    "Chain.json",
+    "Clock Tower.json",
+    "Coordinated Panic.json",
+    "Cube.json",
+    "Doomed.json",
+    "Foursquare.json",
+    "Going Down Faster.json",
+    "Going Down.json",
+    "Hunter Food.json",
+    "Intro 1.json",
+    "Intro 2.json",
+    "Intro 3.json",
+    "Intro 4.json",
+    "It's Okay, You Can Press Escape.json",
+    "Laserland.json",
+    "Leap Of Faith.json",
+    "Look But Don't Touch.json",
+    "Mr. Four-Arms.json",
+    "My Head 'Asplode.json",
+    "No Cover.json",
+    "Run!.json",
+    "Sandwiched.json",
+    "Shocker.json",
+    "Stick Together.json",
+    "Tour.json",
+    "Traps.json",
+    "Triple Threat.json",
+    "Up and Down.json",
+    "Walk Through Walls.json",
+  ]
+
+  var game Game
+  var context CanvasContext
+
+  def load(url string) {
+    var xhr = dynamic.XMLHttpRequest.new()
+    xhr.onload = => {
+      game = Game.new
+      game.resize(WIDTH, HEIGHT)
+      gameState.loadLevelFromJSON(Json.parse(xhr.responseText))
+    }
+    xhr.open("GET", "../levels/" + url)
+    xhr.send()
+  }
+
+  @entry
+  def main {
+    context = CanvasContext.new(WIDTH, HEIGHT)
+    animate
+
+    var body = document.body
+    body.appendChild(context.element)
+    body.appendChild(document.createElement("div"))
+
+    levels.each(level => {
+      var link = document.createElement("a")
+      link.onclick = => load(level)
+      link.href = "javascript:void 0"
+      link.textContent = level
+      body.appendChild(link)
+      body.appendChild(document.createTextNode(" " + string.fromCodeUnit(0x2022) + " "))
+    })
+
+    load("Intro 1.json")
+  }
+
+  def animate {
+    var oldTime = now
+    var tick fn()
+    tick = => {
+      var newTime = now
+      var seconds = (newTime - oldTime) / 1000
+      if game != null {
+        if seconds < 0.25 {
+          game.tick(seconds)
+        }
+        game.draw(context)
+      }
+      oldTime = newTime
+      dynamic.requestAnimationFrame(tick)
+    }
+    tick()
+  }
+
+  def now double {
+    if dynamic.window.performance {
+      return dynamic.performance.now()
+    }
+    return +dynamic.Date.new
+  }
+
+  def keyFromEvent(event dynamic) Key {
+    if !event.altKey && !event.metaKey && !event.shiftKey && !event.ctrlKey {
+      switch event.which {
+        case 75 { return .KILL }    # k key
+
+        # player a
+        case 38 { return .A_JUMP }   # up arrow key
+        case 40 { return .A_CROUCH } # down arrow key
+        case 37 { return .A_LEFT }   # left arrow key
+        case 39 { return .A_RIGHT }  # right arrow key
+
+        # player b
+        case 87 { return .B_JUMP }   # w key
+        case 83 { return .B_CROUCH } # s key
+        case 65 { return .B_LEFT }   # a key
+        case 68 { return .B_RIGHT }  # d key
+      }
+    }
+    return .NONE
+  }
+}
+
+@export
+def onkeydown(e dynamic) {
+  var key = browser.keyFromEvent(e)
+  if key != .NONE {
+    browser.game.keyDown(key)
+    e.preventDefault()
+  }
+}
+
+@export
+def onkeyup(e dynamic) {
+  var key = browser.keyFromEvent(e)
+  if key != .NONE {
+    browser.game.keyUp(key)
+    e.preventDefault()
+  }
+}

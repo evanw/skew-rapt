@@ -1,0 +1,126 @@
+class DrawDoomMagnet :: DrawCallback {
+  def draw(c Context) {
+    const length = 0.15
+    const outerRadius = 0.15
+    const innerRadius = 0.05
+
+    for scale in [-1, 1] {
+      c.setFillColor(.RED)
+      c.beginPath
+      c.moveTo(-outerRadius - length, scale * innerRadius)
+      c.lineTo(-outerRadius - length, scale * outerRadius)
+      c.lineTo(-outerRadius - length + (outerRadius - innerRadius), scale * outerRadius)
+      c.lineTo(-outerRadius - length + (outerRadius - innerRadius), scale * innerRadius)
+      c.fill
+
+      c.setFillColor(.BLUE)
+      c.beginPath
+      c.moveTo(outerRadius + length, scale * innerRadius)
+      c.lineTo(outerRadius + length, scale * outerRadius)
+      c.lineTo(outerRadius + length - (outerRadius - innerRadius), scale * outerRadius)
+      c.lineTo(outerRadius + length - (outerRadius - innerRadius), scale * innerRadius)
+      c.fill
+    }
+    c.setStrokeColor(.BLACK)
+
+    # draw one prong of the magnet
+    c.beginPath
+    c.arc(outerRadius, 0, outerRadius, 1.5 * Math.PI, 0.5 * Math.PI, true)
+    c.lineTo(outerRadius + length, outerRadius)
+    c.lineTo(outerRadius + length, innerRadius)
+
+    c.arc(outerRadius, 0, innerRadius, 0.5 * Math.PI, 1.5 * Math.PI, false)
+    c.lineTo(outerRadius + length, -innerRadius)
+    c.lineTo(outerRadius + length, -outerRadius)
+    c.lineTo(outerRadius, -outerRadius)
+    c.stroke
+
+    # other prong
+    c.beginPath
+    c.arc(-outerRadius, 0, outerRadius, 1.5 * Math.PI, 2.5 * Math.PI, false)
+    c.lineTo(-outerRadius - length, outerRadius)
+    c.lineTo(-outerRadius - length, innerRadius)
+
+    c.arc(-outerRadius, 0, innerRadius, 2.5 * Math.PI, 1.5 * Math.PI, true)
+    c.lineTo(-outerRadius - length, -innerRadius)
+    c.lineTo(-outerRadius - length, -outerRadius)
+    c.lineTo(-outerRadius, -outerRadius)
+    c.stroke
+  }
+}
+
+namespace DrawDoomMagnet {
+  const INSTANCE = new
+}
+
+class DoomMagnet : RotatingEnemy {
+  var bodySprite = Sprite.new
+
+  def new(center Vector) {
+    super(.MAGNET, center, RADIUS, 0, ELASTICITY)
+    bodySprite.drawCallback = DrawDoomMagnet.INSTANCE
+  }
+
+  over avoidsSpawn bool {
+    return true
+  }
+
+  def calcHeadingVector(target Player) Vector {
+    if target.isDead { return Vector.new(0, 0) }
+    var delta = target.getCenter - getCenter
+    if delta.lengthSquared > RANGE * RANGE { return Vector.new(0, 0) }
+    delta.normalize
+    return delta
+  }
+
+  over move(seconds double) Vector {
+    var playerA = gameState.playerA
+    var playerB = gameState.playerB
+
+    var headingA = calcHeadingVector(playerA)
+    var headingB = calcHeadingVector(playerB)
+    var heading = (headingA + headingB) * ACCEL
+
+    var delta = accelerate(heading, seconds)
+
+    # Time independent version of mulitiplying by 0.994
+    velocity *= Math.pow(0.547821, seconds)
+
+    var center = getCenter
+    var oldAngle = bodySprite.angle
+    var targetAngle = oldAngle
+
+    if !playerA.isDead && playerB.isDead {
+      targetAngle = (playerA.getCenter - center).atan2 + Math.PI
+    }
+
+    else if playerA.isDead && !playerB.isDead {
+      targetAngle = (playerB.getCenter - center).atan2
+    }
+
+    else if !playerA.isDead && !playerB.isDead {
+      var needsFlip = (playerA.getCenter - center).flip.dot(playerB.getCenter - center) < 0
+      targetAngle = heading.atan2 - Math.PI * 0.5 + (needsFlip ? Math.PI : 0)
+    }
+
+    bodySprite.angle = adjustAngleToTarget(oldAngle, targetAngle, MAX_ROTATION * seconds)
+    return delta
+  }
+
+  over afterTick(seconds double) {
+    var position = getCenter
+    bodySprite.offsetBeforeRotation = Vector.new(position.x, position.y)
+  }
+
+  over draw(c Context) {
+    bodySprite.draw(c)
+  }
+}
+
+namespace DoomMagnet {
+  const RADIUS = 0.3
+  const ELASTICITY = 0.5
+  const RANGE = 10.0
+  const ACCEL = 2.0
+  const MAX_ROTATION = TWOPI
+}

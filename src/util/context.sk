@@ -1,0 +1,60 @@
+type Color : int {
+  def red int {
+    return (self as int) & 255
+  }
+
+  def green int {
+    return (self as int) >> 8 & 255
+  }
+
+  def blue int {
+    return (self as int) >> 16 & 255
+  }
+
+  def alpha int {
+    return (self as int) >>> 24
+  }
+}
+
+namespace Color {
+  const WHITE = new(255, 255, 255, 255)
+  const BLACK = new(0, 0, 0, 255)
+  const RED = new(255, 0, 0, 255)
+  const BLUE = new(0, 0, 255, 255)
+  const YELLOW = new(255, 255, 0, 255)
+  const MUTED_RED = new(192, 0, 0, 255)
+  const MUTED_BLUE = new(0, 0, 210, 255)
+  const COG_YELLOW = new(255, 245, 0, 255)
+  const LIGHT_GRAY = new(191, 191, 191, 255)
+  const DARK_GRAY = new(127, 127, 127, 255)
+  const TRANSPARENT_WHITE = new(255, 255, 255, 25)
+
+  def new(r int, g int, b int, a int) Color {
+    return (r | g << 8 | b << 16 | a << 24) as Color
+  }
+}
+
+interface Context {
+  def save
+  def restore
+  def scale(x double, y double)
+  def rotate(radians double)
+  def translate(x double, y double)
+  def setStrokeThickness(thickness double)
+  def setStrokeColor(color Color)
+  def setFillColor(color Color)
+  def beginPath
+  def moveTo(x double, y double)
+  def lineTo(x double, y double)
+  def closePath
+  def clip
+  def fill
+  def stroke
+  def fillRect(x double, y double, width double, height double)
+  def strokeRect(x double, y double, width double, height double)
+  def arc(x double, y double, r double, startAngle double, endAngle double, anticlockwise bool)
+}
+
+interface DrawCallback {
+  def draw(c Context)
+}

@@ -1,0 +1,4 @@
+interface Settings {
+  def getInt(name string) Box<int>
+  def setInt(name string, value int)
+}

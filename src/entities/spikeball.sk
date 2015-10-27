@@ -1,0 +1,67 @@
+class SpikeBall : Enemy {
+  var sprites = [Sprite.new, Sprite.new, Sprite.new]
+  var hitCircle Circle
+
+  def new(center Vector) {
+    super(.SPIKE_BALL, 0)
+    hitCircle = Circle.new(center, RADIUS)
+
+    sprites[0].drawCallback = DrawSpikes.new(11)
+    sprites[1].drawCallback = DrawSpikes.new(13)
+    sprites[2].drawCallback = DrawSpikes.new(7)
+
+    sprites[1].setParent(sprites[0])
+    sprites[2].setParent(sprites[0])
+
+    sprites[0].angle = randInRange(0, TWOPI)
+    sprites[1].angle = randInRange(0, TWOPI)
+    sprites[2].angle = randInRange(0, TWOPI)
+  }
+
+  over getShape Shape {
+    return hitCircle
+  }
+
+  over canCollide bool {
+    return false
+  }
+
+  over afterTick(seconds double) {
+    sprites[0].offsetBeforeRotation = getCenter
+    sprites[0].angle -= seconds * (25 * Math.PI / 180)
+    sprites[1].angle += seconds * (65 * Math.PI / 180)
+    sprites[2].angle += seconds * (15 * Math.PI / 180)
+  }
+
+  over draw(c Context) {
+    sprites[0].draw(c)
+  }
+}
+
+namespace SpikeBall {
+  const RADIUS = 0.2
+}
+
+class DrawSpikes :: DrawCallback {
+  var radii List<double> = []
+
+  def new(count int) {
+    for i in 0..count {
+      radii.append(SpikeBall.RADIUS * randInRange(0.5, 1.5))
+    }
+  }
+
+  def draw(c Context) {
+    c.setStrokeColor(.BLACK)
+    c.beginPath
+    var count = radii.count
+    var scale = TWOPI / count
+    for i in 0..count {
+      var angle = i * scale
+      var radius = radii[i]
+      c.moveTo(0, 0)
+      c.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius)
+    }
+    c.stroke
+  }
+}

@@ -1,0 +1,140 @@
+const MAX_SPAWN_FORCE = 100.0
+const INNER_SPAWN_RADIUS = 1.0
+const OUTER_SPAWN_RADIUS = 1.1
+
+enum EnemyType {
+  BOMB
+  BOMBER
+  BOUNCY_ROCKET
+  BOUNCY_ROCKET_LAUNCHER
+  CLOUD
+  COG
+  CRAWLER
+  DOORBELL
+  GRENADE
+  GRENADIER
+  HEADACHE
+  HELP_SIGN
+  HUNTER
+  JET_STREAM
+  LASER
+  MAGNET
+  MULTI_GUN
+  POPPER
+  RIOT_BULLET
+  ROCKET
+  ROCKET_SPIDER
+  ROCKET_SPIDER_LEGS
+  SHOCK_HAWK
+  SPIKE_BALL
+  STALACBAT
+  WALL_AVOIDER
+  WHEELIGATOR
+}
+
+# Represents dynamic non-user-controlled entities in the game world.
+class Enemy : Entity {
+  var type EnemyType
+  var elasticity double
+
+  # Most enemies should use the default tick and override methods below
+  over tick(seconds double) {
+    if avoidsSpawn {
+      setVelocity(getVelocity + avoidSpawnForce * seconds)
+    }
+
+    var ref_deltaPosition = Box<Vector>.new(move(seconds))
+    var ref_velocity = Box<Vector>.new(getVelocity)
+    var shape = getShape
+    var contact Contact = null
+
+    # Only collide enemies that can collide with the world
+    if canCollide {
+      contact = CollisionDetector.collideEntityWorld(self, ref_deltaPosition, ref_velocity, elasticity, true)
+      setVelocity(ref_velocity.value)
+    }
+    shape.moveBy(ref_deltaPosition.value)
+
+    # If this enemy collided with the world, react to the world
+    if contact != null {
+      reactToWorld(contact)
+    }
+
+    # If this is way out of bounds, kill it
+    if !CollisionDetector.containsPointShape(shape.getCenter, gameState.world.getHugeAabb) {
+      setDead(true)
+    }
+
+    # If the enemy is still alive, collide it with the players
+    if !isDead {
+      for player in CollisionDetector.overlapShapePlayers(shape) {
+        if !player.isDead {
+          reactToPlayer(player)
+        }
+      }
+    }
+
+    afterTick(seconds)
+  }
+
+  over getColor EdgeColor {
+    return .ENEMIES
+  }
+
+  def getElasticity double {
+    return elasticity
+  }
+
+  def getType EnemyType {
+    return type
+  }
+
+  def canCollide bool {
+    return true
+  }
+
+  def avoidsSpawn bool {
+    return false
+  }
+
+  # Accelerate updates velocity and returns the delta position
+  def accelerate(accel Vector, seconds double) Vector {
+    setVelocity(velocity + accel * seconds)
+    return velocity * seconds
+  }
+
+  def avoidSpawnForce Vector {
+    assert(getShape.getType == .CIRCLE)
+    var radius = (getShape as Circle).radius
+    var relSpawnPosition = gameState.getSpawnPoint - getCenter
+    var distance = relSpawnPosition.length - radius
+
+    # If inside the inner circle, push with max force
+    if distance < INNER_SPAWN_RADIUS {
+      return relSpawnPosition.unit * -MAX_SPAWN_FORCE
+    }
+    if distance < OUTER_SPAWN_RADIUS {
+      var magnitude = MAX_SPAWN_FORCE * (1 - (distance - INNER_SPAWN_RADIUS) / (OUTER_SPAWN_RADIUS - INNER_SPAWN_RADIUS))
+      return relSpawnPosition.unit * -magnitude
+    }
+    return Vector.new(0, 0)
+  }
+
+  # This moves the enemy
+  def move(seconds double) Vector {
+    return Vector.new(0, 0)
+  }
+
+  # Enemy's reaction to a collision with the World, by default has no effect
+  def reactToWorld(contact Contact) {
+  }
+
+  # Enemy's reaction to a collision with a Player, by default kills the Player
+  def reactToPlayer(player Player) {
+    player.setDead(true)
+  }
+
+  # Do stuff that needs an updated enemy, like move the graphics
+  def afterTick(seconds double) {
+  }
+}
