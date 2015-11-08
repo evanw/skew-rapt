@@ -8,10 +8,10 @@ clean:
 build:
 	mkdir -p build
 
-debug: | build
+debug: | build node_modules
 	$(BUILD)
 
-release: | build
+release: | build node_modules
 	$(BUILD) --release
 
 watch-debug:
@@ -19,3 +19,6 @@ watch-debug:
 
 watch-release:
 	watch src 'clear && make release'
+
+node_modules:
+	npm install
